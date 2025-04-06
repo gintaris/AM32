@@ -42,6 +42,10 @@ AM32 currently has support for STSPIN32F0, STM32F051, STM32G071, GD32E230, AT32F
 The CKS32F051 is not recommended due to too many random issues.
 Target compatibility List can be found [here](https://github.com/am32-firmware/AM32/blob/main/Inc/targets.h)
 
+### Development Boards
+- MB1419-G431CBU6 Nucleo Board 
+  - Standard version: use MB1419_G431 target
+  - DroneCAN version: use MB1419_G431_CAN target
 
 ## Installation & Bootloader
 

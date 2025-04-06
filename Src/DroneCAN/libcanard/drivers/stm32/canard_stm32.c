@@ -6,10 +6,14 @@
  * Author: Pavel Kirienko <pavel.kirienko@zubax.com>
  */
 
+#include <string.h>
+// #include <unistd.h> // This is a POSIX header not available on bare-metal STM32
 #include "canard_stm32.h"
 #include "_internal_bxcan.h"
-#include <unistd.h>
 
+// The usleep function is implemented in sys_can_stm32.c for our target
+// Just declare it here
+void usleep(uint32_t usec);
 
 #if CANARD_STM32_USE_CAN2
 # define BXCAN                                                  CANARD_STM32_CAN2

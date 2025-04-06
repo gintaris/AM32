@@ -27,6 +27,10 @@
 // dronecan_dsdlc compiler
 #include "dsdl_generated/dronecan_msgs.h"
 
+#ifdef MB1419_G431_CAN
+#define AM32_MCU "STM32G431"
+#endif
+
 #ifndef PREFERRED_NODE_ID
 #define PREFERRED_NODE_ID 0
 #endif
@@ -1150,6 +1154,10 @@ static void DroneCAN_Startup(void)
         NVIC_DisableIRQ(DMA1_Channel6_IRQn);
         NVIC_DisableIRQ(EXINT15_10_IRQn);
         EXINT->inten &= ~EXINT_LINE_15;
+#elif defined(MCU_G431)
+        NVIC_DisableIRQ(DMA1_Channel1_IRQn); // Based on G431 DMA for TIM15_CH1
+        NVIC_DisableIRQ(EXTI15_10_IRQn);
+        EXTI->IMR1 &= ~(1U << 15);
 #else
         #error "unsupported MCU"
 #endif

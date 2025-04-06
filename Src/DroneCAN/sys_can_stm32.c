@@ -4,11 +4,11 @@
 
 #include "targets.h"
 
-#if DRONECAN_SUPPORT && defined(MCU_L431)
+#if DRONECAN_SUPPORT && (defined(MCU_L431) || defined(MCU_G431))
 
 #include "sys_can.h"
-#include <canard_stm32.h>
-#include <_internal_bxcan.h>
+#include "libcanard/drivers/stm32/canard_stm32.h"
+#include "libcanard/drivers/stm32/_internal_bxcan.h"
 #include "functions.h"
 
 #define BXCAN CANARD_STM32_CAN1
@@ -148,9 +148,14 @@ int16_t sys_can_receive(CanardCANFrame *rx_frame)
  */
 void sys_can_disable_IRQ(void)
 {
+#ifdef MCU_L431
     NVIC_DisableIRQ(CAN1_RX0_IRQn);
     NVIC_DisableIRQ(CAN1_RX1_IRQn);
     NVIC_DisableIRQ(CAN1_TX_IRQn);
+#elif defined(MCU_G431)
+    NVIC_DisableIRQ(FDCAN1_IT0_IRQn);
+    NVIC_DisableIRQ(FDCAN1_IT1_IRQn);
+#endif
 }
 
 /*
@@ -158,9 +163,14 @@ void sys_can_disable_IRQ(void)
  */
 void sys_can_enable_IRQ(void)
 {
+#ifdef MCU_L431
     NVIC_EnableIRQ(CAN1_RX0_IRQn);
     NVIC_EnableIRQ(CAN1_RX1_IRQn);
     NVIC_EnableIRQ(CAN1_TX_IRQn);
+#elif defined(MCU_G431)
+    NVIC_EnableIRQ(FDCAN1_IT0_IRQn);
+    NVIC_EnableIRQ(FDCAN1_IT1_IRQn);
+#endif
 }
 
 /*
@@ -176,7 +186,12 @@ void sys_can_init(void)
     /*
       setup CAN RX and TX pins
      */
+#ifdef MCU_L431
     LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_CAN1);
+#elif defined(MCU_G431)
+    // G431 uses FDCAN - enable clock directly through RCC registers
+    RCC->APB1ENR1 |= RCC_APB1ENR1_FDCANEN;
+#endif
     LL_AHB2_GRP1_EnableClock(LL_AHB2_GRP1_PERIPH_GPIOA);
 
     // assume PA11/PA12 for now
@@ -185,7 +200,11 @@ void sys_can_init(void)
     GPIO_InitStruct.Mode = LL_GPIO_MODE_ALTERNATE;
     GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
     GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_HIGH;
+#ifdef MCU_L431
     GPIO_InitStruct.Alternate = 9; // AF9==CAN
+#elif defined(MCU_G431)
+    GPIO_InitStruct.Alternate = 9; // AF9==FDCAN on G431
+#endif
     LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
     LL_RCC_ClocksTypeDef Clocks;
@@ -207,6 +226,14 @@ void sys_can_init(void)
             timings.bit_segment_2 = 1;
             timings.max_resynchronization_jump_width = 1;
             break;
+#ifdef MCU_G431
+        case 170000000UL:  // G431 can run at higher frequencies
+            timings.bit_rate_prescaler = 17;
+            timings.bit_segment_1 = 8;
+            timings.bit_segment_2 = 1;
+            timings.max_resynchronization_jump_width = 1;
+            break;
+#endif
         default:
             // need to port to this board
             while (true) {
@@ -221,22 +248,41 @@ void sys_can_init(void)
     /*
       enable interrupt for CAN receive and transmit
     */
+#ifdef MCU_L431
     NVIC_SetPriority(CAN1_RX0_IRQn, 5);
     NVIC_SetPriority(CAN1_RX1_IRQn, 5);
     NVIC_SetPriority(CAN1_TX_IRQn, 5);
+#elif defined(MCU_G431)
+    NVIC_SetPriority(FDCAN1_IT0_IRQn, 5);
+    NVIC_SetPriority(FDCAN1_IT1_IRQn, 5);
+#endif
     BXCAN->IER = CANARD_STM32_CAN_IER_FMPIE0 | CANARD_STM32_CAN_IER_FMPIE1 | CANARD_STM32_CAN_IER_TMEIE;
 }
 
 uint32_t get_rtc_backup_register(uint8_t idx)
 {
+#ifdef MCU_L431
     const volatile uint32_t *bkp = &RTC->BKP0R;
     return bkp[idx];
+#elif defined(MCU_G431)
+    // G431 uses TAMP->BKP registers instead
+    const volatile uint32_t *bkp = &TAMP->BKP0R;
+    return bkp[idx];
+#else
+    return 0;
+#endif
 }
 
 void set_rtc_backup_register(uint8_t idx, uint32_t value)
 {
+#ifdef MCU_L431
     volatile uint32_t *bkp = &RTC->BKP0R;
     bkp[idx] = value;
+#elif defined(MCU_G431)
+    // G431 uses TAMP->BKP registers instead
+    volatile uint32_t *bkp = &TAMP->BKP0R;
+    bkp[idx] = value;
+#endif
 }
 
 /*
@@ -263,5 +309,5 @@ void setup_portpin(uint16_t portpin, bool enable)
     LL_GPIO_Init(pport, &GPIO_InitStruct);
 }
 
-#endif // DRONECAN_SUPPORT && defined(MCU_L431)
+#endif // DRONECAN_SUPPORT && (defined(MCU_L431) || defined(MCU_G431))
 

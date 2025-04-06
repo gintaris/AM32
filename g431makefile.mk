@@ -3,7 +3,7 @@ PART := STM32G431xx
 
 MCU_LC := $(call lc,$(MCU))
 
-TARGETS_$(MCU) := $(call get_targets,$(MCU))
+TARGETS_$(MCU) := $(call get_targets,$(MCU)) MB1419_G431 MB1419_G431_CAN
 
 HAL_FOLDER_$(MCU) := $(HAL_FOLDER)/$(MCU_LC)
 

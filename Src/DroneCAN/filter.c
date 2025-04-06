@@ -5,7 +5,12 @@
   Based on ArduPilot LowPassFilter2p.cpp
  */
 
+#include "filter.h"
 #include <math.h>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846f
+#endif
 
 struct Filter2P {
     float cutoff_freq;
