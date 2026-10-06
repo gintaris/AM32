@@ -19,6 +19,25 @@ on:
           - elf
 
 jobs:
+  psc3-tests:
+    # host unit tests and static analysis of the PSC3 MCU layer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cppcheck
+        run: sudo apt-get update && sudo apt-get install -y cppcheck
+
+      - name: PSC3 host unit tests
+        run: make psc3_test HOSTCC=gcc
+
+      - name: PSC3 cppcheck
+        run: >
+          cppcheck --enable=warning,performance --inline-suppr --error-exitcode=1 -q
+          -DKIT_2GO_PSC3 -DUSE_MAKE -DPSC3M5FDS2LGQ1 -IInc -IMcu/psc3/Inc
+          --suppress=missingIncludeSystem
+          Mcu/psc3/Src Mcu/psc3/Startup Mcu/psc3/Boot
+
   build:
     runs-on: ${{ matrix.os }}
 

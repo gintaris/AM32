@@ -88,6 +88,44 @@
           "enabled": true,
           "samplesPerSecond": 4
         }
+      },
+
+      // PSC3 (KIT_PSC3M5_2GO): loads the boot stub and the last built
+      // firmware (obj/debug.elf). Needs the SEGGER J-Link software; check the
+      // device name with JLinkExe ExpDevList (see Mcu/psc3/README.md)
+      {
+        "type": "cortex-debug",
+        "request": "launch",
+        "name": "AM32 PSC3 JLink",
+        "cwd": "${workspaceRoot}",
+        "servertype": "jlink",
+        "device": "PSC3M5FDS2LGQ1",
+        "interface": "swd",
+        "executable": "${workspaceRoot}/obj/debug.elf",
+        "loadFiles": ["${workspaceRoot}/obj/PSC3_BOOT_STUB.elf", "${workspaceRoot}/obj/debug.elf"],
+        "svdFile": "obj/debug.svd",
+        "showDevDebugOutput": "raw",
+        "liveWatch": {
+          "enabled": true,
+          "samplesPerSecond": 4
+        }
+      },
+
+      // PSC3 with the Infineon OpenOCD of the ModusToolbox Programming Tools
+      // (upstream OpenOCD has no PSC3 target), adjust the paths to the install
+      {
+        "type": "cortex-debug",
+        "request": "launch",
+        "name": "AM32 PSC3 OpenOCD",
+        "cwd": "${workspaceFolder}",
+        "servertype": "openocd",
+        "serverpath": "C:/Infineon/Tools/ModusToolboxProgtools-1.9/openocd/bin/openocd.exe",
+        "searchDir": ["C:/Infineon/Tools/ModusToolboxProgtools-1.9/openocd/scripts"],
+        "configFiles": ["${workspaceFolder}/obj/openocd.cfg"],
+        "executable": "${workspaceFolder}/obj/debug.elf",
+        "loadFiles": ["${workspaceFolder}/obj/PSC3_BOOT_STUB.elf", "${workspaceFolder}/obj/debug.elf"],
+        "svdFile": "obj/debug.svd",
+        "showDevDebugOutput": "none"
       }
     ]
   }

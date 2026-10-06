@@ -1,0 +1,18 @@
+// J-Link Commander script for the KIT_PSC3M5_2GO (on-board J-Link LITE).
+// Programs the boot stub and the last built firmware, then runs it.
+// From the repository root, after make psc3_boot_stub and make KIT_2GO_PSC3:
+//   JLink -CommandFile Mcu/psc3/jlink_flash.jlink
+// The device name has to match the J-Link device list (ExpDevList). If the
+// flash loader does not accept the secure C-AHB addresses (0x12000000), use
+// the Infineon OpenOCD (openocd.cfg) instead.
+device PSC3M5FDS2LGQ1
+si SWD
+speed 4000
+connect
+r
+h
+loadfile obj/PSC3_BOOT_STUB.hex
+loadfile obj/debug.elf
+r
+g
+exit
