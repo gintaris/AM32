@@ -291,9 +291,11 @@ void generatePwmTimerEvent(void)
     pwmTrigger(PWM_TRIG_SWITCH);
 }
 
+// like the STM32 PSC = 0, CNT = 0 after a signal timeout
 void resetInputCaptureTimer(void)
 {
-    // DP8
+    setPclkDivider(PCLK_DIV_INPUT, 1);
+    IC_TIMER_REGISTER->COUNTER = 0;
 }
 
 // free running up counter in timer mode, period + 1 clocks per terminal count
@@ -359,7 +361,8 @@ void initCorePeripherals(void)
     ADC_Init();
 #endif
     hppass_ready = hppassStart(comparatorSliceMask(), HPPASS_SAR_USED);
-    // DP8 input, DP10 telemetry
+    initInput();
+    // DP10 telemetry
 #ifdef USE_SERIAL_TELEMETRY
     telem_UART_Init();
 #endif

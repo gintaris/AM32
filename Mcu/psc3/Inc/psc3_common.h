@@ -36,8 +36,9 @@
 #define GPIO_DM_STRONG      6UL
 #define GPIO_IN_EN          8UL
 
-// HSIOM selection for software controlled GPIO
-#define HSIOM_SEL_GPIO      0UL
+// HSIOM selections
+#define HSIOM_SEL_GPIO          0UL     // software controlled GPIO
+#define HSIOM_SEL_TR_IO_INPUT   26UL    // peri.tr_io_input[], same on all PSC3 port pins
 
 // route a pin (HSIOM) and set its drive mode
 static inline void gpioSetMode(uint32_t port, uint32_t pin, uint32_t drive, uint32_t hsiom)
