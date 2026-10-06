@@ -22,6 +22,7 @@
 #define PCLK_DIV_INPUT      1
 #define PCLK_DIV_2MHZ       2
 #define PCLK_DIV_1MHZ       3
+#define PCLK_DIV8_CSG       0       // 8 bit divider 0
 
 // PWM counters in TCPWM group 1
 #define PWM_CNT_FIRST       4       // counter 260

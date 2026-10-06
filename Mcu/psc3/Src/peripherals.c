@@ -9,10 +9,12 @@
 #include "ADC.h"
 #include "IO.h"
 #include "comparator.h"
+#include "hppass.h"
 #include "serial_telemetry.h"
 #include "targets.h"
 
 // PCLK divider type for CLOCK_CTL / DIV_CMD
+#define PCLK_DIV_TYPE_8     0UL
 #define PCLK_DIV_TYPE_16    1UL
 
 // watchdog: the free running WDT resets on the third match interrupt that is
@@ -21,6 +23,9 @@
 #define WDT_LOCK_CLR0           (1UL << SRSS_WDT_CTL_WDT_LOCK_Pos)
 #define WDT_LOCK_CLR1           (2UL << SRSS_WDT_CTL_WDT_LOCK_Pos)
 #define WDT_LOCK_SET01          (3UL << SRSS_WDT_CTL_WDT_LOCK_Pos)
+
+// bring-up diagnostics, readable with the debugger
+volatile uint8_t hppass_ready;
 
 void initAfterJump(void)
 {
@@ -49,12 +54,30 @@ void setPclkDivider(uint32_t div16, uint32_t divide_by)
         | (0xFFUL << PERI_PCLK_GR_DIV_CMD_PA_DIV_SEL_Pos) | sel;
 }
 
+// set an 8 bit divider of the TCPWM PCLK group (the CSG clock)
+static void setPclkDivider8(uint32_t div8, uint32_t divide_by)
+{
+    PERI_PCLK_GR_Type* gr = &PERI_PCLK->GR[PCLK_TCPWM_GROUP];
+    const uint32_t sel = (PCLK_DIV_TYPE_8 << PERI_PCLK_GR_DIV_CMD_TYPE_SEL_Pos) | div8;
+
+    gr->DIV_CMD = PERI_PCLK_GR_DIV_CMD_DISABLE_Msk | sel;
+    gr->DIV_8_CTL[div8] = ((divide_by - 1UL) << PERI_PCLK_GR_DIV_8_CTL_INT8_DIV_Pos)
+        & PERI_PCLK_GR_DIV_8_CTL_INT8_DIV_Msk;
+    gr->DIV_CMD = PERI_PCLK_GR_DIV_CMD_ENABLE_Msk | (3UL << PERI_PCLK_GR_DIV_CMD_PA_TYPE_SEL_Pos)
+        | (0xFFUL << PERI_PCLK_GR_DIV_CMD_PA_DIV_SEL_Pos) | sel;
+}
+
 // connect a peripheral clock (en_clk_dst_t, group in the high byte) to a
-// 16 bit divider of its PCLK group
-static void connectPclk(en_clk_dst_t dst, uint32_t div16)
+// divider of its PCLK group
+static void connectPclkType(en_clk_dst_t dst, uint32_t type, uint32_t div)
 {
     PERI_PCLK->GR[(uint32_t)dst >> 8].CLOCK_CTL[(uint32_t)dst & 0xFFUL] =
-        (PCLK_DIV_TYPE_16 << PERI_PCLK_GR_CLOCK_CTL_TYPE_SEL_Pos) | div16;
+        (type << PERI_PCLK_GR_CLOCK_CTL_TYPE_SEL_Pos) | div;
+}
+
+static void connectPclk(en_clk_dst_t dst, uint32_t div16)
+{
+    connectPclkType(dst, PCLK_DIV_TYPE_16, div16);
 }
 
 /*
@@ -83,6 +106,10 @@ void SystemClock_Config(void)
     connectPclk(PCLK_TCPWM0_CLOCK_COUNTER_EN513, PCLK_DIV_2MHZ);   // COM_TIMER
     connectPclk(PCLK_TCPWM0_CLOCK_COUNTER_EN514, PCLK_DIV_1MHZ);   // UTILITY_TIMER
     connectPclk(PCLK_TCPWM0_CLOCK_COUNTER_EN515, PCLK_DIV_1MHZ);   // TEN_KHZ_TIMER
+
+    // HPPASS CSG clock, 10..120 MHz
+    setPclkDivider8(PCLK_DIV8_CSG, PCLK_DIVIDE_CSG);
+    connectPclkType(PCLK_PASS_CLOCK_CSG, PCLK_DIV_TYPE_8, PCLK_DIV8_CSG);
 }
 
 void MX_GPIO_Init(void)
@@ -92,7 +119,11 @@ void MX_GPIO_Init(void)
     gpioSetMode(IPM_ENABLE_PORT, IPM_ENABLE_PIN, GPIO_DM_STRONG, HSIOM_SEL_GPIO);
 
 #ifdef LED_PORT
+#ifdef LED_ACTIVE_LOW
+    gpioWrite(LED_PORT, LED_PIN, 1);    // off
+#else
     gpioWrite(LED_PORT, LED_PIN, 0);
+#endif
     gpioSetMode(LED_PORT, LED_PIN, GPIO_DM_STRONG, HSIOM_SEL_GPIO);
 #endif
 }
@@ -320,7 +351,9 @@ void initCorePeripherals(void)
     initNvicPriorities();
     initPwm();
     initTimers();
-    // DP6 comparators, DP8 input, DP10 telemetry
+    initComparators();
+    hppass_ready = hppassStart(comparatorSliceMask(), HPPASS_SAR_USED);
+    // DP8 input, DP10 telemetry
 #ifdef USE_SERIAL_TELEMETRY
     telem_UART_Init();
 #endif

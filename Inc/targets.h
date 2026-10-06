@@ -5477,21 +5477,33 @@
 #define TELEM_DMA_CHANNEL       1           // DataWire 0 channel 1
 #define TELEM_DMA_IRQ           cpuss_interrupts_dw0_1_IRQn
 
-// HPPASS SAR channels, to be checked against the kit schematic (AN_A0..AN_A4)
-#define VOLTAGE_ADC_CHANNEL     0
-#define CURRENT_ADC_CHANNEL     1
+// HPPASS SAR inputs (kit guide): AN_A0 / AN_A1 shunt +/-, AN_A2 current
+// amplifier, AN_A3 thermistor, AN_A4 DC link divider, AN_B4 potentiometer
+#define VOLTAGE_ADC_CHANNEL     4           // AN_A4
+#define CURRENT_ADC_CHANNEL     2           // AN_A2
 #define ADC_DMA_CHANNEL         2           // DataWire 0 channel 2
 #define ADC_DMA_IRQ             cpuss_interrupts_dw0_2_IRQn
 
-// BEMF comparators: HPPASS CSG slices. The 2GO kit does not route the phase
-// voltages to the MCU, the inputs are placeholders until the dividers are fitted
-#define PHASE_A_COMP_CSG        0
-#define PHASE_B_COMP_CSG        1
-#define PHASE_C_COMP_CSG        2
+// BEMF comparators: HPPASS CSG slice k compares AN_Ak / AN_Bk (+) with its
+// DAC or with AN_A(k+1) / AN_B(k+1) (-). The kit does not route the phase
+// voltages to the MCU. Rework: phase dividers (same ratio as the DC link
+// divider) on J4 AN_B2, AN_B3 and on AN_B4 with the potentiometer R20 wiper
+// lifted. No neutral input is left, so the DACs give a virtual neutral of
+// VBUS / 2 from the DC link measurement (see Mcu/psc3/README.md for the limits)
+#define PHASE_A_COMP_CSG        2
+#define PHASE_A_COMP_POS        CSG_POS_AN_B    // AN_B2
+#define PHASE_A_COMP_NEG        CSG_NEG_DAC
+#define PHASE_B_COMP_CSG        3
+#define PHASE_B_COMP_POS        CSG_POS_AN_B    // AN_B3
+#define PHASE_B_COMP_NEG        CSG_NEG_DAC
+#define PHASE_C_COMP_CSG        4
+#define PHASE_C_COMP_POS        CSG_POS_AN_B    // AN_B4
+#define PHASE_C_COMP_NEG        CSG_NEG_DAC
 
-// status LED
+// status LED, red D7 with the anode on 3.3 V (green D8 on P9.0)
 #define LED_PORT                7
 #define LED_PIN                 0
+#define LED_ACTIVE_LOW
 #endif
 /************************************ G031 Hardware Groups
  * ************************************************/
