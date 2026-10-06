@@ -78,7 +78,13 @@ first.
 | `UTILITY_TIMER` | group 2: 514 | PCLK 16 bit divider 3, 1 MHz |
 | `TEN_KHZ_TIMER` | group 2: 515 | PCLK 16 bit divider 3, 1 MHz, period for `LOOP_FREQUENCY_HZ` |
 
-The 32 bit counters of group 0 are free.
+The 32 bit counters of group 0 are free. Counter 3 only serves as a software
+interrupt for `processDshot()` (`DSHOT_SW_IRQ`).
+
+All timer counters run in timer mode counting up, with a terminal count every
+PERIOD + 1 ticks like the STM32 ARR + 1. The clocks are in `Inc/psc3_timing.h`.
+`COM_TIMER` and `TEN_KHZ_TIMER` interrupt on the terminal count
+(`Src/psc3_it.c`); the control loop runs at exactly `LOOP_FREQUENCY_HZ`.
 
 ## Gate outputs
 
@@ -94,11 +100,58 @@ pairs do not match the high / low pairs of one phase:
 | P4.3 | WH | line_compl[261] |
 | P4.0 | WL | line[260] |
 
-AM32 drives all phases with the same duty cycle, so the three counters run the
-same PWM and each gate pin selects its signal with `LINE_SEL`
-(fixed 0 / fixed 1 / PWM / inverted PWM), the stepper motor control feature of
-TCPWM v2. Whether "PWM" and "inverted PWM" on `line_compl` carry the dead time
-the same way as on `line` has to be checked on the scope (bring-up step 4).
+AM32 drives all phases with the same duty cycle for six step commutation, so
+the three counters run the same PWM and each gate pin selects its signal with
+`LINE_SEL` (fixed 0 / fixed 1 / PWM / inverted PWM), the stepper motor control
+feature of TCPWM v2 (`Src/phaseouts.c`):
+
+| Phase state | High gate | Low gate |
+| --- | --- | --- |
+| PWM | PWM | inverted PWM (`comp_pwm`) or 0 |
+| LOW | 0 | 1 |
+| FLOAT | 0 | 0 |
+
+The counters run in PWM_DT mode, counting up, line set at the terminal count
+and cleared at the CC0 match (STM32 PWM mode 1). In the TCPWM output path the
+line selection comes before the dead time insertion, so each gate pin gets
+`DEAD_TIME` (60 clocks = 333 ns) on its rising edge whatever it selects: a
+LINE_SEL change cannot turn on both gates of a phase even though they belong
+to different counters. This still has to be confirmed on the scope
+(bring-up step 4).
+
+The high and low gate of a phase come from different counters, so the
+counters must stay in step:
+
+- they start together on `tcpwm[0].tr_all_cnt_in[0]`, pulsed by software
+  through PERI trigger group 9 (`startPwm()`, TRM 24.2.5)
+- new PERIOD / CC0 values go to the buffer registers and are taken over at the
+  next terminal count after a switch event that all three counters get from
+  `tr_all_cnt_in[1]` (`SET_DUTY_CYCLE_ALL`, `SET_AUTO_RELOAD_PWM`). A switch
+  reaching only some counters would give a phase two duty cycles for a period.
+
+Limits of this pin map:
+
+- per phase duty cycles are impossible (every counter drives gates of two
+  phases), so the target sets `NO_SINE_START` and `setPWMCompare1..3` do
+  nothing. A board for this port should put the high and low gate of each phase
+  on the `line` / `line_compl` pair of one counter.
+- `USE_INVERTED_HIGH` / `USE_INVERTED_LOW` are rejected: there is no output
+  polarity control, inverted gates would get the dead time on the wrong edge.
+  The IRSM836 inputs are active high.
+
+The IPM is enabled (`IPM_ENABLE_ACTIVE`, polarity still to be checked on the
+schematic) only after the counters run with all gates off.
+
+## Host unit tests
+
+```
+make psc3_test HOSTCC=clang
+```
+
+`Test/unit` builds `Src/phaseouts.c` against plain memory registers and checks
+every commutation step for both `comp_pwm` settings (no shoot through, expected
+phase states), plus the PWM, dead time, sound and timer clock arithmetic. On
+Windows the clang of the Visual Studio Build Tools works as `HOSTCC`.
 
 ## Bring-up images
 

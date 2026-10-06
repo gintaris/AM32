@@ -54,3 +54,8 @@ obj/PSC3_BLINK.hex: $(PSC3_BLINK_SRC) $(LDSCRIPT_PSC3)
 	$(QUIET)$(MKDIR) -p obj
 	$(QUIET)$(CC) $(PSC3_TOOLS_CFLAGS) -T$(LDSCRIPT_PSC3) -o $(@:.hex=.elf) $(PSC3_BLINK_SRC)
 	$(QUIET)$(OBJCOPY) -O ihex $(@:.hex=.elf) $@
+
+# host unit tests of the PSC3 MCU layer, set HOSTCC if cc is not a C compiler
+.PHONY: psc3_test
+psc3_test:
+	$(MAKE) -C $(HAL_FOLDER_PSC3)/Test/unit
