@@ -5453,6 +5453,7 @@
 // IPM enable, EN_IPM in the BSP. Polarity to be checked on the schematic
 #define IPM_ENABLE_PORT         0
 #define IPM_ENABLE_PIN          0
+#define IPM_ENABLE_ACTIVE       1
 
 // DShot / PWM input on J4 P8.0: TCPWM counter 516 captures through
 // peri.tr_io_input[38] and drives line[516] for bidirectional DShot
@@ -5471,11 +5472,13 @@
 #define SERIAL_TELEMETRY_PIN    3
 #define SERIAL_TELEMETRY_HSIOM_SEL 14       // P9_3_SCB0_UART_TX
 #define TELEM_DMA_CHANNEL       1           // DataWire 0 channel 1
+#define TELEM_DMA_IRQ           cpuss_interrupts_dw0_1_IRQn
 
 // HPPASS SAR channels, to be checked against the kit schematic (AN_A0..AN_A4)
 #define VOLTAGE_ADC_CHANNEL     0
 #define CURRENT_ADC_CHANNEL     1
 #define ADC_DMA_CHANNEL         2           // DataWire 0 channel 2
+#define ADC_DMA_IRQ             cpuss_interrupts_dw0_2_IRQn
 
 // BEMF comparators: HPPASS CSG slices. The 2GO kit does not route the phase
 // voltages to the MCU, the inputs are placeholders until the dividers are fitted
@@ -5933,6 +5936,7 @@
 #define COM_TIMER_IRQ           tcpwm_0_interrupts_513_IRQn
 #define TEN_KHZ_TIMER_IRQ       tcpwm_0_interrupts_515_IRQn
 #define COMPARATOR_IRQ          pass_interrupt_csg_cmps_IRQn
+#define DSHOT_SW_IRQ            tcpwm_0_interrupts_3_IRQn   // counter 3 is unused, pended by software for processDshot()
 #define DSHOT_PRIORITY_THRESHOLD 60
 #define USE_ADC
 #endif

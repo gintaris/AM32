@@ -44,6 +44,29 @@ The same flash is visible at `0x32000000` (secure S-AHB), `0x02000000` and
 sets VTOR and jumps to the firmware. It stands in for the AM32 bootloader
 until that is ported; it does not provide the bootloader device info.
 
+## Clocks
+
+`SystemInit()` (`Src/system_psc3.c`) runs before `main()`:
+
+1. CLK_HF0 to the 8 MHz IMO through the glitch free direct mux
+2. core voltage to OD (1.2 V) with the SFLASH LDO trim, needed above 150 MHz
+3. flash R-bus wait states 60 x f / 1000 + 1 = 11, I-cache on
+4. DPLL0 on clock path 1: IHO 48 MHz / Q 6 = 8 MHz, x P 45 = 360 MHz DCO, / 2 = 180 MHz
+5. CLK_HF1 (IOSS), CLK_HF3 (TCPWM, HPPASS, SCB0..4) and CLK_HF0 (CPU) from path 1
+
+All TCPWM counters therefore count from 180 MHz = `CPU_FREQUENCY_MHZ`.
+If the DPLL does not lock the CPU stays on the IMO and `psc3_dpll_locked`
+reads 0 in the debugger. The sequences follow the PDL (`Cy_SysPm_LdoSetVoltage`,
+`Cy_SysLib_SetWaitStates`, `Cy_SysClk_DpllLp*`).
+
+`SystemClock_Config()` releases HSIOM, GPIO, TCPWM0, HPPASS and SCB0 in their
+PERI groups (SL_CTL2 / SL_CTL) and sets the PERI_PCLK group 5 dividers.
+
+The watchdog is the free running SRSS WDT on the ILO: it resets on the third
+uncleared match, about 2 s with `IGNORE_BITS_ABOVE` = 15. It is enabled and
+locked from reset with all 32 bits compared, so `MX_IWDG_Init()` unlocks it
+first.
+
 ## Timers
 
 | AM32 | TCPWM counter | Clock |
