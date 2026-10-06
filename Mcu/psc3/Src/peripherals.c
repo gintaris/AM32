@@ -40,10 +40,10 @@ static void enablePeriSlave(uint32_t group, uint32_t slave)
     PERI->GR[group].SL_CTL |= 1UL << slave;
 }
 
-// set a 16 bit divider of the TCPWM PCLK group to divide by divide_by
-void setPclkDivider(uint32_t div16, uint32_t divide_by)
+// set a 16 bit divider of a PCLK group to divide by divide_by
+void pclkDivider16(uint32_t group, uint32_t div16, uint32_t divide_by)
 {
-    PERI_PCLK_GR_Type* gr = &PERI_PCLK->GR[PCLK_TCPWM_GROUP];
+    PERI_PCLK_GR_Type* gr = &PERI_PCLK->GR[group];
     const uint32_t sel = (PCLK_DIV_TYPE_16 << PERI_PCLK_GR_DIV_CMD_TYPE_SEL_Pos) | div16;
 
     gr->DIV_CMD = PERI_PCLK_GR_DIV_CMD_DISABLE_Msk | sel;
@@ -52,6 +52,11 @@ void setPclkDivider(uint32_t div16, uint32_t divide_by)
     // no phase alignment: PA_TYPE_SEL = 3, PA_DIV_SEL = 255
     gr->DIV_CMD = PERI_PCLK_GR_DIV_CMD_ENABLE_Msk | (3UL << PERI_PCLK_GR_DIV_CMD_PA_TYPE_SEL_Pos)
         | (0xFFUL << PERI_PCLK_GR_DIV_CMD_PA_DIV_SEL_Pos) | sel;
+}
+
+void setPclkDivider(uint32_t div16, uint32_t divide_by)
+{
+    pclkDivider16(PCLK_TCPWM_GROUP, div16, divide_by);
 }
 
 // set an 8 bit divider of the TCPWM PCLK group (the CSG clock)
@@ -75,7 +80,7 @@ static void connectPclkType(en_clk_dst_t dst, uint32_t type, uint32_t div)
         (type << PERI_PCLK_GR_CLOCK_CTL_TYPE_SEL_Pos) | div;
 }
 
-static void connectPclk(en_clk_dst_t dst, uint32_t div16)
+void connectPclk(en_clk_dst_t dst, uint32_t div16)
 {
     connectPclkType(dst, PCLK_DIV_TYPE_16, div16);
 }
@@ -131,7 +136,8 @@ void MX_GPIO_Init(void)
 /*
  * Priorities, 3 bits: commutation and comparator first, the DShot DMA
  * second (main.c swaps these two at high rpm with bidirectional DShot),
- * then the DShot processing and the control loop, telemetry and ADC last.
+ * then the DShot processing and the control loop, the ADC last (the
+ * telemetry UART runs from its FIFO without interrupts).
  */
 static void initNvicPriorities(void)
 {
@@ -141,7 +147,6 @@ static void initNvicPriorities(void)
     NVIC_SetPriority(IC_TIMER_IRQ, 1);
     NVIC_SetPriority(DSHOT_SW_IRQ, 2);
     NVIC_SetPriority(TEN_KHZ_TIMER_IRQ, 2);
-    NVIC_SetPriority(TELEM_DMA_IRQ, 3);
     NVIC_SetPriority(ADC_DMA_IRQ, 3);
 }
 

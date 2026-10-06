@@ -5474,8 +5474,6 @@
 #define SERIAL_TELEMETRY_PORT   9
 #define SERIAL_TELEMETRY_PIN    3
 #define SERIAL_TELEMETRY_HSIOM_SEL 14       // P9_3_SCB0_UART_TX
-#define TELEM_DMA_CHANNEL       1           // DataWire 0 channel 1
-#define TELEM_DMA_IRQ           cpuss_interrupts_dw0_1_IRQn
 
 // HPPASS SAR inputs (kit guide): AN_A0 / AN_A1 shunt +/-, AN_A2 current
 // amplifier, AN_A3 thermistor, AN_A4 DC link divider, AN_B4 potentiometer
