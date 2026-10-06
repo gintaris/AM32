@@ -63,6 +63,7 @@ void setPWMCompare2(uint16_t comparetwo);
 void setPWMCompare3(uint16_t comparethree);
 void generatePwmTimerEvent(void);
 void setPwmPrescaler(uint16_t presc);
+void setPwmDeadTime(uint16_t deadtime);
 void setPclkDivider(uint32_t div16, uint32_t divide_by);
 
 #endif /* PERIPHERALS_H_ */

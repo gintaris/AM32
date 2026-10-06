@@ -44,6 +44,12 @@ void setPwmPrescaler(uint16_t presc)
     setPclkDivider(PCLK_DIV_PWM, (uint32_t)presc + 1);
 }
 
+void setPwmDeadTime(uint16_t deadtime)
+{
+    (void)deadtime;
+    // DP4
+}
+
 void setPWMCompare1(uint16_t compareone)
 {
     (void)compareone;
