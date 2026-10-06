@@ -36,6 +36,7 @@ void tcpwm_0_interrupts_515_IRQHandler(void)
     tenKhzRoutine();
 }
 
+#ifndef BEMF_ADC
 // combined HPPASS CSG comparator interrupt, BEMF zero cross. Edges in the
 // first half of the commutation interval are ignored like on the STM32 targets
 void pass_interrupt_csg_cmps_IRQHandler(void)
@@ -46,3 +47,4 @@ void pass_interrupt_csg_cmps_IRQHandler(void)
         interruptRoutine();
     }
 }
+#endif

@@ -5481,6 +5481,7 @@
 // amplifier, AN_A3 thermistor, AN_A4 DC link divider, AN_B4 potentiometer
 #define VOLTAGE_ADC_CHANNEL     4           // AN_A4
 #define CURRENT_ADC_CHANNEL     2           // AN_A2
+#define TEMP_ADC_CHANNEL        3           // AN_A3 thermistor, part to be checked on the schematic
 #define ADC_DMA_CHANNEL         2           // DataWire 0 channel 2
 #define ADC_DMA_IRQ             cpuss_interrupts_dw0_2_IRQn
 
@@ -5499,6 +5500,18 @@
 #define PHASE_C_COMP_CSG        4
 #define PHASE_C_COMP_POS        CSG_POS_AN_B    // AN_B4
 #define PHASE_C_COMP_NEG        CSG_NEG_DAC
+
+// With the DAC neutral the comparators are right only in the PWM on time, so
+// the 2GO kit samples the phases with the SAR in the middle of the on time
+// (counter 261 CC1 match) and emulates the comparator in software
+// (Mcu/psc3/Src/comparator_adc.c). Same rework and pins as above.
+// Define PSC3_BEMF_CSG to use the CSG comparators with the DAC neutral
+#ifndef PSC3_BEMF_CSG
+#define BEMF_ADC
+#endif
+#define PHASE_A_ADC_CHANNEL     10          // AN_B2
+#define PHASE_B_ADC_CHANNEL     11          // AN_B3
+#define PHASE_C_ADC_CHANNEL     12          // AN_B4, MUX0 select 0
 
 // status LED, red D7 with the anode on 3.3 V (green D8 on P9.0)
 #define LED_PORT                7
@@ -5950,7 +5963,11 @@
 #endif
 #define COM_TIMER_IRQ           tcpwm_0_interrupts_513_IRQn
 #define TEN_KHZ_TIMER_IRQ       tcpwm_0_interrupts_515_IRQn
+#ifdef BEMF_ADC
+#define COMPARATOR_IRQ          pass_interrupt_sar_entry_done_0_IRQn    // BEMF sampled by SAR entry 0
+#else
 #define COMPARATOR_IRQ          pass_interrupt_csg_cmps_IRQn
+#endif
 #define DSHOT_SW_IRQ            tcpwm_0_interrupts_3_IRQn   // counter 3 is unused, pended by software for processDshot()
 #define DSHOT_PRIORITY_THRESHOLD 60
 #define USE_ADC

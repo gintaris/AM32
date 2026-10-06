@@ -16,8 +16,13 @@
 #define CSG_NEG_AN_A        2UL     // AN_A(k+1)
 #define CSG_NEG_AN_B        3UL     // AN_B(k+1)
 
-// DAC code of the virtual neutral before the first bus voltage reading (VDDA / 2)
+// virtual neutral before the first bus voltage reading: VDDA / 2 as 10 bit
+// DAC code (CSG) or as 12 bit ADC count (BEMF_ADC)
+#ifdef BEMF_ADC
+#define COMP_REFERENCE_DEFAULT  2048U
+#else
 #define COMP_REFERENCE_DEFAULT  512U
+#endif
 
 void initComparators(void);
 uint32_t comparatorSliceMask(void);
@@ -27,6 +32,7 @@ void enableCompInterrupts(void);
 void changeCompInput(void);
 void setCompReference(uint16_t dac);
 uint16_t compReferenceFromBus(uint16_t adc_raw_volts);
+void bemfAdcProcess(const uint16_t samples[3], uint16_t interval_count);
 
 extern volatile char rising;
 extern char step;

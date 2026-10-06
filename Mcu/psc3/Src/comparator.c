@@ -9,12 +9,14 @@
  * the STM32 targets (phase on the + input, common on the - input).
  * changeCompInput() picks the slice of the floating phase and its interrupt
  * edge, the combined CSG comparator interrupt calls interruptRoutine()
- * (psc3_it.c).
+ * (psc3_it.c). Targets with BEMF_ADC use comparator_adc.c instead.
  */
 
 #include "comparator.h"
 
 #include "targets.h"
+
+#ifndef BEMF_ADC
 
 static const uint8_t comp_slice[3] = { PHASE_A_COMP_CSG, PHASE_B_COMP_CSG, PHASE_C_COMP_CSG };
 static const uint8_t comp_pos[3] = { PHASE_A_COMP_POS, PHASE_B_COMP_POS, PHASE_C_COMP_POS };
@@ -102,3 +104,5 @@ uint16_t compReferenceFromBus(uint16_t adc_raw_volts)
 {
     return (uint16_t)(adc_raw_volts >> 3);
 }
+
+#endif /* !BEMF_ADC */

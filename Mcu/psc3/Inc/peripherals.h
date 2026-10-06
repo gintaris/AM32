@@ -79,6 +79,8 @@ static inline void setPwmDutyAll(uint32_t newdc)
     PWM_TIMER(4)->CC0_BUFF = newdc;
     PWM_TIMER(5)->CC0_BUFF = newdc;
     PWM_TIMER(6)->CC0_BUFF = newdc;
+    // CC1 of counter 261 triggers the SAR in the middle of the on time (ADC.c)
+    PWM_TIMER(5)->CC1_BUFF = newdc >> 1;
     pwmTrigger(PWM_TRIG_SWITCH);
 }
 

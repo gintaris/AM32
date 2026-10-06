@@ -9,7 +9,7 @@ CFLAGS := -std=c11 -Wall -Wextra -Werror -Wno-unused-parameter -O1 -DUSE_MAKE -D
 	-Istubs -I. -I$(ROOT)/Inc -I$(ROOT)/Mcu/psc3/Inc
 OUT := build
 
-TESTS := test_phaseouts test_pwm_math test_timer_math test_comparator
+TESTS := test_phaseouts test_pwm_math test_timer_math test_comparator test_comparator_adc
 
 .PHONY: test clean
 test: $(addprefix $(OUT)/,$(addsuffix .exe,$(TESTS)))
@@ -32,4 +32,8 @@ $(OUT)/test_timer_math.exe: test_timer_math.c unit.h $(ROOT)/Mcu/psc3/Inc/psc3_t
 
 $(OUT)/test_comparator.exe: test_comparator.c $(ROOT)/Mcu/psc3/Src/comparator.c stubs/*.h unit.h $(ROOT)/Inc/targets.h
 	@mkdir -p $(OUT)
-	"$(HOSTCC)" $(CFLAGS) -o $@ test_comparator.c $(ROOT)/Mcu/psc3/Src/comparator.c
+	"$(HOSTCC)" $(CFLAGS) -DPSC3_BEMF_CSG -o $@ test_comparator.c $(ROOT)/Mcu/psc3/Src/comparator.c
+
+$(OUT)/test_comparator_adc.exe: test_comparator_adc.c $(ROOT)/Mcu/psc3/Src/comparator_adc.c stubs/*.h unit.h $(ROOT)/Inc/targets.h
+	@mkdir -p $(OUT)
+	"$(HOSTCC)" $(CFLAGS) -o $@ test_comparator_adc.c $(ROOT)/Mcu/psc3/Src/comparator_adc.c
