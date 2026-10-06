@@ -21,6 +21,11 @@ int main(void)
     CHECK(COM_TIMER_HZ == INTERVAL_TIMER_HZ, "COM_TIMER and INTERVAL_TIMER share the 2 MHz divider");
     CHECK(TEN_KHZ_TIMER_HZ == UTILITY_TIMER_HZ, "TEN_KHZ_TIMER and UTILITY_TIMER share the 1 MHz divider");
 
+    // HPPASS CSG clock from an 8 bit divider, 10..120 MHz
+    CHECK(PCLK_DIVIDE_CSG * CSG_CLOCK_HZ == PSC3_COUNTER_CLOCK_HZ, "CSG divider %lu", (unsigned long)PCLK_DIVIDE_CSG);
+    CHECK(PCLK_DIVIDE_CSG >= 1 && PCLK_DIVIDE_CSG <= 256, "CSG divider range");
+    CHECK(CSG_CLOCK_HZ >= 10000000UL && CSG_CLOCK_HZ <= 120000000UL, "CSG clock range");
+
     // AM32 expects 0.5 us interval ticks and 1 us utility ticks
     CHECK(1e9 / INTERVAL_TIMER_HZ == 500.0, "interval tick %.1f ns", 1e9 / INTERVAL_TIMER_HZ);
     CHECK(1e9 / UTILITY_TIMER_HZ == 1000.0, "utility tick %.1f ns", 1e9 / UTILITY_TIMER_HZ);

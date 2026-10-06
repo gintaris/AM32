@@ -142,6 +142,53 @@ Limits of this pin map:
 The IPM is enabled (`IPM_ENABLE_ACTIVE`, polarity still to be checked on the
 schematic) only after the counters run with all gates off.
 
+## BEMF comparators
+
+The five HPPASS CSG slices each have a high speed comparator. Slice k
+compares AN_Ak or AN_Bk (+) with its 10 bit DAC or with AN_A(k+1) / AN_B(k+1)
+(-) (TRM table 253). `Src/comparator.c` uses one slice per phase; the
+comparator output is '1' when the phase is above the neutral, like the STM32
+targets. `changeCompInput()` selects the slice of the floating phase and its
+edge (rising BEMF: falling output edge), the combined CSG comparator interrupt
+(`pass_interrupt_csg_cmps`) ignores edges in the first half of the commutation
+interval and calls `interruptRoutine()`.
+
+The HPPASS is started by `Src/hppass.c`: SFLASH trims, AREF, start-up timer
+(200 ns ticks from clk_infra = CLK_HF3 / 2), and a two state AC program that
+enables the CSG slices (and the SAR, DP7) and waits for BLOCK_READY.
+`hppass_ready` reads 1 in the debugger when that worked. The CSG clock is
+90 MHz from an 8 bit divider of PCLK group 5.
+
+KIT_PSC3M5_2GO analog pins (kit guide): AN_A0 / AN_A1 shunt +/-, AN_A2 current
+amplifier, AN_A3 thermistor, AN_A4 DC link divider, AN_B2 / AN_B3 on J4,
+AN_B4 potentiometer, AN_A5 / AN_B1 not connected. The phase voltages do not
+reach the MCU, so BEMF sensing needs a rework:
+
+| Phase | CSG slice | + input | 2GO pin | - input |
+| --- | --- | --- | --- | --- |
+| A (U) | 2 | AN_B2 | J4 | DAC2 |
+| B (V) | 3 | AN_B3 | J4 | DAC3 |
+| C (W) | 4 | AN_B4 | potentiometer R20 wiper (lift it) | DAC4 |
+
+The phase dividers need the ratio of the DC link divider on AN_A4; the DACs
+then hold VBUS / 2 (`compReferenceFromBus()` from the 12 bit DC link reading).
+No free pin is left for a neutral divider.
+
+Limit of the DAC neutral: with complementary PWM the motor neutral is at
+VBUS / 2 only while the PWM is on and near 0 V while it is off, so the
+comparator compares correctly only in the on time and toggles with the PWM
+once the BEMF is positive. AM32 expects a comparator against the real
+(resistor) neutral. Options, to be decided with the kit on the bench:
+
+1. a board for this port: phase dividers on AN_Bk and a neutral divider on
+   AN_A(k+1) / AN_B(k+1) of the same slice (set `PHASE_x_COMP_NEG` to
+   `CSG_NEG_AN_A` / `CSG_NEG_AN_B`), no firmware change
+2. 2GO: sample the floating phase with the SAR in the PWM on time (TCPWM
+   trigger) and emulate the comparator in the ADC interrupt (the planned ADC
+   fallback, together with DP7)
+3. 2GO: CSG hysteretic DAC mode toggled by the PWM edges, so the DAC follows
+   the neutral (VBUS / 2 on, 0 off), with the DAC deglitch latch; untested idea
+
 ## Host unit tests
 
 ```

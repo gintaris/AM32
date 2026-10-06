@@ -22,6 +22,10 @@
 #define PCLK_DIVIDE_2MHZ        (PSC3_COUNTER_CLOCK_HZ / INTERVAL_TIMER_HZ)
 #define PCLK_DIVIDE_1MHZ        (PSC3_COUNTER_CLOCK_HZ / UTILITY_TIMER_HZ)
 
+// HPPASS comparator / slope generator clock, 10..120 MHz
+#define CSG_CLOCK_HZ            90000000UL
+#define PCLK_DIVIDE_CSG         (PSC3_COUNTER_CLOCK_HZ / CSG_CLOCK_HZ)
+
 // terminal count every PERIOD + 1 ticks
 #define TEN_KHZ_TIMER_PERIOD    (TEN_KHZ_TIMER_HZ / LOOP_FREQUENCY_HZ - 1UL)
 
