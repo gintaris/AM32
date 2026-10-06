@@ -117,6 +117,12 @@ SECTIONS
     _edata = .;
   } >RAM AT> FLASH
 
+  /* the settings row (sector 1) is written while the firmware runs from
+     flash; read while write works only between the two 128 kB sectors, so
+     the firmware and the 16 byte cache prefetch must stay in sector 0 */
+  ASSERT(LOADADDR(.data) + SIZEOF(.data) <= 0x12020000 - 16,
+         "firmware reaches flash sector 1, EEPROM writes need read while write")
+
   .bss (NOLOAD) :
   {
     . = ALIGN(4);

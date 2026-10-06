@@ -5948,6 +5948,7 @@
 #ifndef EEPROM_START_ADD
 #define EEPROM_START_ADD    (uint32_t)0x1203FC00    // last 1 kB of the 256 kB flash, secure alias
 #endif
+#define ERASED_FLASH_BYTE   0x00    // PSC3 flash reads 0 after an erase (valEmpty of the Infineon flash loader)
 
 // TCPWM counters, TCPWM_CNT(group, counter). The counter clocks come from
 // PERI_PCLK dividers, see Mcu/psc3/Inc/peripherals.h

@@ -244,6 +244,27 @@ updates the virtual neutral.
 - the DMA interrupt (`IC_DMA_IRQ_NAME`) works like the G431 handler and pends
   `DSHOT_SW_IRQ` (unused TCPWM counter 3) for `processDshot()`
 
+## Settings (EEPROM)
+
+`Src/eeprom.c` keeps the 192 byte settings in the 512 byte flash row at
+`EEPROM_START_ADD` (0x1203FC00, row aligned, flash sector 1):
+
+- writes go through the boot ROM flash API (`Device/cyboot_flash_list.h`,
+  Apache-2.0, as `Cy_Flash_WriteRow` in the PDL): the rest of the row is kept,
+  then one blocking write row erases and programs it; the result is in
+  `eeprom_write_status` (`CYBOOT_FLASH_SUCCESS` = 0x0D50B002)
+- read while write works only between the two 128 kB sectors, so the
+  firmware has to stay in sector 0; `PSC3M5_FLASH.ld` stops the link
+  otherwise. The cache prefetch is off during the write and the I-cache is
+  invalidated afterwards (the settings are read through the cached C-AHB
+  alias)
+- erased PSC3 flash reads 0x00 (`valEmpty` of the Infineon flash loader
+  `PSC3xxE.FLM`), so the target sets `ERASED_FLASH_BYTE` 0x00 for the startup
+  tune check in `sounds.c`
+- a future AM32 bootloader for the PSC3 must use the same row and must not
+  report the STM32 flash size codes in its device info (`checkDeviceInfo()`
+  would move `eeprom_address` to an STM32 address)
+
 ## Host unit tests
 
 ```

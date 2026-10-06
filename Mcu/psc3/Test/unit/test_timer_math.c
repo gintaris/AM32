@@ -41,5 +41,12 @@ int main(void)
     // targets: 4000 ticks = 2 ms per step
     CHECK(4000UL * 1000000UL / INTERVAL_TIMER_HZ == 2000UL, "tick conversion");
 
+    // settings row (eeprom.c): one 512 byte row in flash sector 1, away from
+    // the firmware in sector 0, erased flash reads 0x00
+    CHECK((EEPROM_START_ADD & 511U) == 0, "EEPROM_START_ADD row aligned");
+    CHECK(EEPROM_START_ADD >= 0x12020000UL && EEPROM_START_ADD + 512U <= 0x12040000UL, "settings in sector 1");
+    CHECK(DEVINFO_ADDRESS + 32U == 0x12001000UL, "device info at the end of the 4 kB bootloader");
+    CHECK(ERASED_FLASH_BYTE == 0x00, "PSC3 erased flash");
+
     return report("test_timer_math");
 }
