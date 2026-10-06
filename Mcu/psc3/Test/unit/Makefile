@@ -9,7 +9,7 @@ CFLAGS := -std=c11 -Wall -Wextra -Werror -Wno-unused-parameter -O1 -DUSE_MAKE -D
 	-Istubs -I. -I$(ROOT)/Inc -I$(ROOT)/Mcu/psc3/Inc
 OUT := build
 
-TESTS := test_phaseouts test_pwm_math test_timer_math test_comparator test_comparator_adc
+TESTS := test_phaseouts test_pwm_math test_timer_math test_comparator test_comparator_adc test_dshot
 
 .PHONY: test clean
 test: $(addprefix $(OUT)/,$(addsuffix .exe,$(TESTS)))
@@ -37,3 +37,7 @@ $(OUT)/test_comparator.exe: test_comparator.c $(ROOT)/Mcu/psc3/Src/comparator.c 
 $(OUT)/test_comparator_adc.exe: test_comparator_adc.c $(ROOT)/Mcu/psc3/Src/comparator_adc.c stubs/*.h unit.h $(ROOT)/Inc/targets.h
 	@mkdir -p $(OUT)
 	"$(HOSTCC)" $(CFLAGS) -o $@ test_comparator_adc.c $(ROOT)/Mcu/psc3/Src/comparator_adc.c
+
+$(OUT)/test_dshot.exe: test_dshot.c $(ROOT)/Src/dshot.c stubs/*.h unit.h $(ROOT)/Inc/targets.h
+	@mkdir -p $(OUT)
+	"$(HOSTCC)" $(CFLAGS) -o $@ test_dshot.c $(ROOT)/Src/dshot.c
