@@ -1831,6 +1831,9 @@ int main(void)
     if (!eepromBuffer.comp_pwm) {
         eepromBuffer.use_sine_start = 0; // sine start requires complementary pwm.
     }
+#ifdef NO_SINE_START
+    eepromBuffer.use_sine_start = 0; // hardware without per phase duty cycles
+#endif
 
     if (eepromBuffer.rc_car_reverse) { // overrides a whole lot of things!
         throttle_max_at_low_rpm = 1000;

@@ -5426,6 +5426,9 @@
 // do not match the high / low pairs of one phase, so each gate pin selects
 // its own signal with LINE_SEL (see Mcu/psc3/Src/phaseouts.c).
 // _CNT is the counter in TCPWM group 1 (4 = counter 260), _COMPL = 1 for line_compl
+// Every counter drives gates of two phases, so all phases share one duty
+// cycle and the sine startup (per phase duty cycles) is not possible
+#define NO_SINE_START
 #define PWM_GPIO_PORT           4
 #define PWM_HSIOM_SEL           9           // P4_x_TCPWM0_LINE / LINE_COMPL
 
