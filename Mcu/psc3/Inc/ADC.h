@@ -9,8 +9,8 @@
 
 #include "main.h"
 
-// the SAR is started with the HPPASS once ADC.c configures it (DP7)
-#define HPPASS_SAR_USED 0
+// ADC.c configures the SAR, it is started together with the HPPASS
+#define HPPASS_SAR_USED 1
 
 void ADC_Init(void);
 void activateADC(void);

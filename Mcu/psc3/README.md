@@ -189,6 +189,42 @@ once the BEMF is positive. AM32 expects a comparator against the real
 3. 2GO: CSG hysteretic DAC mode toggled by the PWM edges, so the DAC follows
    the neutral (VBUS / 2 on, 0 off), with the DAC deglitch latch; untested idea
 
+### BEMF from the SAR (KIT_2GO_PSC3 default, `BEMF_ADC`)
+
+Option 2 is implemented and is the default of the 2GO target (define
+`PSC3_BEMF_CSG` for the CSG comparators instead):
+
+- `setPwmDutyAll()` also sets CC1 of PWM counter 261 to half the duty cycle;
+  its CC1 match (`tr_out1[261]`) reaches the HPPASS through the 1:1 trigger
+  `pass.tr_b_in[2]` (HPPASS TR2) in the middle of every PWM on time
+- SAR entry 0 samples AN_B2 / AN_B3 / AN_B4 (channels 10, 11, 12) at the same
+  time; its interrupt (`COMPARATOR_IRQ`, priority 0) passes the samples to
+  `bemfAdcProcess()` (`Src/comparator_adc.c`)
+- the floating phase is compared with half the DC link reading; the emulated
+  comparator gives `getCompOutputLevel()` and calls `interruptRoutine()` on the
+  edge selected by `rising`, ignoring edges in the first half of the
+  commutation interval like the STM32 comparator interrupts
+
+The zero cross resolution is one PWM period (41.7 us at 24 kHz), enough for
+the small 2GO motor at moderate speed. The phase dividers must have the ratio
+of the DC link divider.
+
+## ADC
+
+`Src/ADC.c`, 12 bit SAR, VDDA reference, offset and gain calibrated when the
+HPPASS starts, 711 ns sample time:
+
+| Reading | Pin | SAR channel | Conversion |
+| --- | --- | --- | --- |
+| bus voltage | AN_A4 | 4 | main.c with `TARGET_VOLTAGE_DIVIDER` (TODO kit divider) |
+| current | AN_A2 (shunt amplifier, 1 Ohm shunt) | 2 | main.c with `CURRENT_OFFSET` / `MILLIVOLT_PER_AMP` (TODO amplifier gain) |
+| temperature | AN_A3 thermistor | 3 | `getConvertedDegrees()`, table for a 10 k / B3380 NTC with 10 k pull-up (TODO part) |
+
+SAR entry 1 converts these three on the firmware trigger HPPASS TR0 from
+`startADCConversion()` in the 1 kHz part of the main loop;
+`ADC_DMA_Callback()` reads the channel result registers (no DMA needed) and
+updates the virtual neutral.
+
 ## Host unit tests
 
 ```

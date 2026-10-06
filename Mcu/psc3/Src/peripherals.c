@@ -217,7 +217,8 @@ void initPwm(void)
         cnt->CTRL = (TCPWM_MODE_PWM_DT << TCPWM_GRP_CNT_CTRL_MODE_Pos)
             | (TCPWM_DISABLE_RETAIN << TCPWM_GRP_CNT_CTRL_PWM_DISABLE_MODE_Pos)
             | TCPWM_GRP_CNT_CTRL_AUTO_RELOAD_CC0_Msk | TCPWM_GRP_CNT_CTRL_AUTO_RELOAD_PERIOD_Msk
-            | TCPWM_GRP_CNT_CTRL_CC0_MATCH_UP_EN_Msk;
+            | TCPWM_GRP_CNT_CTRL_AUTO_RELOAD_CC1_Msk
+            | TCPWM_GRP_CNT_CTRL_CC0_MATCH_UP_EN_Msk | TCPWM_GRP_CNT_CTRL_CC1_MATCH_UP_EN_Msk;
         cnt->LINE_SEL = (TCPWM_LINE_L << TCPWM_GRP_CNT_LINE_SEL_OUT_SEL_Pos)
             | (TCPWM_LINE_L << TCPWM_GRP_CNT_LINE_SEL_COMPL_OUT_SEL_Pos);
         cnt->LINE_SEL_BUFF = cnt->LINE_SEL;
@@ -226,6 +227,8 @@ void initPwm(void)
         cnt->PERIOD_BUFF = TIM1_AUTORELOAD;
         cnt->CC0 = 0;
         cnt->CC0_BUFF = 0;
+        cnt->CC1 = 0;
+        cnt->CC1_BUFF = 0;
         writeDeadTime(cnt, DEAD_TIME);
         cnt->TR_PWM_CTRL = (TCPWM_PWM_CLEAR << TCPWM_GRP_CNT_TR_PWM_CTRL_CC0_MATCH_MODE_Pos)
             | (TCPWM_PWM_SET << TCPWM_GRP_CNT_TR_PWM_CTRL_OVERFLOW_MODE_Pos)
@@ -352,6 +355,9 @@ void initCorePeripherals(void)
     initPwm();
     initTimers();
     initComparators();
+#ifdef USE_ADC
+    ADC_Init();
+#endif
     hppass_ready = hppassStart(comparatorSliceMask(), HPPASS_SAR_USED);
     // DP8 input, DP10 telemetry
 #ifdef USE_SERIAL_TELEMETRY
@@ -367,7 +373,6 @@ void enableCorePeripherals(void)
     startTimers();
     // DP7: start the ADC
 #ifdef USE_ADC
-    ADC_Init();
     enableADC_DMA();
     activateADC();
 #endif

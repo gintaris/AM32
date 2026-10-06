@@ -51,6 +51,7 @@ void enableCompInterrupts(void);
 void changeCompInput(void);
 void setCompReference(uint16_t dac);
 uint16_t compReferenceFromBus(uint16_t adc_raw_volts);
+void bemfAdcProcess(const uint16_t samples[3], uint16_t interval_count);
 
 extern volatile char rising;
 extern char step;
