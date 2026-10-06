@@ -6,6 +6,7 @@
 
 #include "main.h"
 
+#include "IO.h"
 #include "peripherals.h"
 #include "targets.h"
 
@@ -20,6 +21,38 @@ void HardFault_Handler(void)
 {
     while (1) {
     }
+}
+
+extern volatile char armed;
+extern volatile char dshot_telemetry;
+extern volatile char out_put;
+extern volatile uint8_t compute_dshot_flag;
+
+// DataWire 0 channel of the signal input / bidirectional DShot output
+void cpuss_interrupts_dw0_0_IRQHandler(void)
+{
+    DW0->CH_STRUCT[INPUT_DMA_CHANNEL].INTR = DW_CH_STRUCT_INTR_CH_Msk;
+    (void)DW0->CH_STRUCT[INPUT_DMA_CHANNEL].INTR;
+
+    if (armed && dshot_telemetry) {
+        if (out_put) {
+            receiveDshotDma();
+            compute_dshot_flag = 2;
+        } else {
+            sendDshotDma();
+            compute_dshot_flag = 1;
+        }
+    } else {
+        transfercomplete();
+    }
+    // processDshot() at a lower priority, like the STM32 software EXTI
+    NVIC_SetPendingIRQ(DSHOT_SW_IRQ);
+}
+
+// software interrupt for processDshot(), TCPWM counter 3 is otherwise unused
+void tcpwm_0_interrupts_3_IRQHandler(void)
+{
+    processDshot();
 }
 
 // COM_TIMER, counter 513

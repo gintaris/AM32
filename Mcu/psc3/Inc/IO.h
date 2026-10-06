@@ -9,6 +9,7 @@
 
 #include "main.h"
 
+void initInput(void);
 void changeToOutput(void);
 void changeToInput(void);
 void receiveDshotDma(void);
