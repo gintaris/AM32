@@ -12,7 +12,9 @@
 #include "peripherals.h"
 
 extern uint32_t _estack;
-extern uint32_t _sidata, _sdata, _edata, _sbss, _ebss, _end;
+extern uint32_t _end;
+// section limits from the linker script, arrays of unknown size
+extern uint32_t _sidata[], _sdata[], _edata[], _sbss[], _ebss[];
 
 int main(void);
 void Reset_Handler(void);
@@ -345,12 +347,15 @@ void Reset_Handler(void)
     __DSB();
     __ISB();
 
-    uint32_t* src = &_sidata;
-    for (uint32_t* dst = &_sdata; dst < &_edata;) {
-        *dst++ = *src++;
+    // the linker symbols are separate objects, so count words instead of
+    // comparing their addresses
+    const uint32_t data_words = ((uintptr_t)_edata - (uintptr_t)_sdata) / 4U;
+    const uint32_t bss_words = ((uintptr_t)_ebss - (uintptr_t)_sbss) / 4U;
+    for (uint32_t i = 0; i < data_words; i++) {
+        _sdata[i] = _sidata[i];
     }
-    for (uint32_t* dst = &_sbss; dst < &_ebss;) {
-        *dst++ = 0;
+    for (uint32_t i = 0; i < bss_words; i++) {
+        _sbss[i] = 0;
     }
 
     SystemInit();

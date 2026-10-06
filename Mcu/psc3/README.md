@@ -295,5 +295,27 @@ make psc3_boot_stub   # obj/PSC3_BOOT_STUB.hex, 0x12000000
 make psc3_blink       # obj/PSC3_BLINK.hex, 0x12001000, LED P7.0 at 1 Hz
 ```
 
-Flash both with the Infineon OpenOCD (ModusToolbox Programming Tools,
-`openocd.cfg`), upstream OpenOCD has no PSC3 target.
+## Programming and debugging
+
+The build copies `openocd.cfg` and `PSC3M5.svd` to `obj/`, and `obj/debug.elf`
+is the last built firmware. The firmware needs the boot stub (or a bootloader)
+at 0x12000000.
+
+- J-Link Commander (SEGGER J-Link software, the kit has a J-Link LITE):
+  `JLink -CommandFile Mcu/psc3/jlink_flash.jlink` loads the stub and
+  `obj/debug.elf`. Check the device name with `ExpDevList` first.
+- Infineon OpenOCD (ModusToolbox Programming Tools, upstream OpenOCD has no
+  PSC3 target):
+
+  ```
+  openocd -s <ProgTools>/openocd/scripts -f Mcu/psc3/openocd.cfg -c "program obj/PSC3_BOOT_STUB.hex" -c "program obj/debug.elf reset exit"
+  ```
+
+- VS Code (Cortex-Debug): "AM32 PSC3 JLink" or "AM32 PSC3 OpenOCD" in
+  `.vscode/launch.json`, both load the stub and the firmware, with the SVD.
+
+## Continuous integration
+
+`.github/workflows/CICD_build.yml`: `make -j8` builds `KIT_2GO_PSC3` with all
+other targets (it is in `MCU_TYPES`), and the `psc3-tests` job runs the host
+unit tests (`make psc3_test HOSTCC=gcc`) and cppcheck on `Mcu/psc3`.

@@ -149,5 +149,50 @@ int main(void)
     CHECK(CPU_FREQUENCY_MHZ * 1e6 / (0 + 1) / 600000 == BIT_CLOCKS, "DShot600 capture clock");
     CHECK(CPU_FREQUENCY_MHZ * 1e6 / (1 + 1) / 300000 == BIT_CLOCKS, "DShot300 capture clock");
 
+    // bidirectional DShot answer: make_dshot_package() fills gcr[] with one
+    // entry per bit, IO.c drives the line low for gcr[] != 0. Decode the line
+    // levels like a flight controller: idle high, start bit low, a '1' of the
+    // 20 bit GCR word is a level change, 5 -> 4 bit GCR table, then
+    // eee mmmmmmmmm cccc with the inverted nibble CRC
+    static const uint8_t gcr_decode[32] = {
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 9, 10, 11, 0xFF, 13, 14, 15,
+        0xFF, 0xFF, 2, 3, 0xFF, 5, 6, 7, 0xFF, 0, 8, 1, 0xFF, 4, 12, 0xFF
+    };
+    static const uint16_t periods[] = { 100, 300, 511, 512, 1000, 4000, 12345, 40000, 65535 };
+    running = 1;
+    for (unsigned t = 0; t < sizeof(periods) / sizeof(periods[0]); t++) {
+        memset(gcr, 0, sizeof(gcr));
+        make_dshot_package(periods[t]);
+        const int pad = buffer_padding;
+        CHECK(gcr[pad] == 0 && gcr[pad + 1] != 0, "idle high, then the start bit low");
+        uint32_t word = 0;
+        int level = 1;  // start bit: line low
+        for (int i = 0; i < 20; i++) {
+            const int next = gcr[pad + 2 + i] != 0;
+            word = (word << 1) | (uint32_t)(next ^ level);
+            level = next;
+        }
+        uint16_t value = 0;
+        int valid = 1;
+        for (int n = 3; n >= 0; n--) {
+            const uint8_t nibble = gcr_decode[(word >> (5 * n)) & 0x1F];
+            valid &= nibble != 0xFF;
+            value = (uint16_t)((value << 4) | (nibble & 0xF));
+        }
+        CHECK(valid, "period %u: invalid GCR symbol", periods[t]);
+        const uint16_t data = value >> 4;
+        const uint16_t crc = (uint16_t)(~(data ^ (data >> 4) ^ (data >> 8)) & 0xF);
+        CHECK((value & 0xF) == crc, "period %u: CRC", periods[t]);
+        const uint32_t period = (uint32_t)(data & 0x1FF) << (data >> 9);
+        // the 9 bit mantissa keeps the period to 1 / 256
+        CHECK(period <= periods[t] && period * 257U / 256U + 1U >= periods[t], "period %u decoded as %u",
+            periods[t], (unsigned)period);
+    }
+    // stopped: the longest period
+    running = 0;
+    make_dshot_package(1000);
+    running = 1;
+    CHECK(gcr[buffer_padding + 1] != 0, "stopped answer sent");
+
     return report("test_dshot");
 }
