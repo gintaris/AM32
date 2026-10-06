@@ -225,6 +225,25 @@ SAR entry 1 converts these three on the firmware trigger HPPASS TR0 from
 `ADC_DMA_Callback()` reads the channel result registers (no DMA needed) and
 updates the virtual neutral.
 
+## Signal input and bidirectional DShot
+
+`Src/IO.c`, J4 pin P8.0, TCPWM counter 516, DataWire 0 channel 0:
+
+- input: the pin goes as `peri.tr_io_input[38]` through PERI trigger group 11
+  to the one-to-one input 1 of counter 516 (capture mode, both edges). Every
+  capture (`tr_out0` = cc0 event) triggers one DMA transfer of CC0 into
+  `dma_buffer[]` through trigger group 0, like the STM32 input capture DMA.
+  The 16 bit counter runs at CPU_FREQUENCY_MHZ / (`ic_timer_prescaler` + 1)
+  from PCLK divider 1: 300 clocks per DShot600 bit with prescaler 0 and per
+  DShot300 bit with prescaler 1
+- bidirectional DShot answer: the pin switches to `line[516]` (HSIOM 10), the
+  counter runs one GCR bit per period (120 clocks: 750 / 375 kbit/s) and each
+  terminal count triggers a DMA transfer of the next level ('0' / '1') into
+  `LINE_SEL`, so the bits have no compare glitches; `gcr[] != 0` drives low
+  like the inverted STM32 output
+- the DMA interrupt (`IC_DMA_IRQ_NAME`) works like the G431 handler and pends
+  `DSHOT_SW_IRQ` (unused TCPWM counter 3) for `processDshot()`
+
 ## Host unit tests
 
 ```
