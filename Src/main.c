@@ -1768,7 +1768,7 @@ static void checkDeviceInfo(void)
         uint32_t magic1;
         uint32_t magic2;
         const uint8_t deviceInfo[9];
-    } *devinfo = (struct devinfo *)(0x1000 - 32);
+    } *devinfo = (struct devinfo *)DEVINFO_ADDRESS;
     if (devinfo->magic1 != DEVINFO_MAGIC1 ||
         devinfo->magic2 != DEVINFO_MAGIC2) {
         // bootloader does not support this feature, nothing to do

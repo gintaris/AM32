@@ -3392,6 +3392,18 @@
 #define RESET 0			//Not used for anything but needed to build correctly
 #endif
 
+// Infineon KIT_PSC3M5_2GO evaluation kit
+#ifdef KIT_2GO_PSC3
+#define FILE_NAME               "KIT_2GO_PSC3"
+#define FIRMWARE_NAME           "IFX_2GO_PSC3"
+#define DEAD_TIME               60          // TCPWM clock cycles at 180 MHz, 333 ns
+#define HARDWARE_GROUP_PSC3_2GO
+#define TARGET_VOLTAGE_DIVIDER  110         // TODO check the kit schematic
+#define CURRENT_OFFSET          0           // millivolts, TODO
+#define MILLIVOLT_PER_AMP       20          // TODO
+#define USE_SERIAL_TELEMETRY
+#endif
+
 #ifdef  CRAWLMASTER_F031
 #define FILE_NAME "CRAWLMASTER_F031"
 #define FIRMWARE_NAME "HH CM F031"
@@ -5400,6 +5412,81 @@
 
 //#define LOOP_FREQUENCY_HZ 10000
 #endif
+
+/************************************ PSC3 Hardware Groups
+ * ************************************************/
+
+// Infineon KIT_PSC3M5_2GO, PSC3M5FDS2LGQ1 (VQFN-48) with an IRSM836 IPM
+#ifdef HARDWARE_GROUP_PSC3_2GO
+
+#define MCU_PSC3
+
+// Gate outputs, pin names from the KIT_PSC3M5_2GO BSP. Every gate pin is a
+// TCPWM group 1 'line' or 'line_compl' output, but the line / line_compl pairs
+// do not match the high / low pairs of one phase, so each gate pin selects
+// its own signal with LINE_SEL (see Mcu/psc3/Src/phaseouts.c).
+// _CNT is the counter in TCPWM group 1 (4 = counter 260), _COMPL = 1 for line_compl
+#define PWM_GPIO_PORT           4
+#define PWM_HSIOM_SEL           9           // P4_x_TCPWM0_LINE / LINE_COMPL
+
+#define PHASE_A_HIGH_PIN        5           // P4.5 UH, line_compl[262]
+#define PHASE_A_HIGH_CNT        6
+#define PHASE_A_HIGH_COMPL      1
+#define PHASE_A_LOW_PIN         2           // P4.2 UL, line[261]
+#define PHASE_A_LOW_CNT         5
+#define PHASE_A_LOW_COMPL       0
+
+#define PHASE_B_HIGH_PIN        4           // P4.4 VH, line[262]
+#define PHASE_B_HIGH_CNT        6
+#define PHASE_B_HIGH_COMPL      0
+#define PHASE_B_LOW_PIN         1           // P4.1 VL, line_compl[260]
+#define PHASE_B_LOW_CNT         4
+#define PHASE_B_LOW_COMPL       1
+
+#define PHASE_C_HIGH_PIN        3           // P4.3 WH, line_compl[261]
+#define PHASE_C_HIGH_CNT        5
+#define PHASE_C_HIGH_COMPL      1
+#define PHASE_C_LOW_PIN         0           // P4.0 WL, line[260]
+#define PHASE_C_LOW_CNT         4
+#define PHASE_C_LOW_COMPL       0
+
+// IPM enable, EN_IPM in the BSP. Polarity to be checked on the schematic
+#define IPM_ENABLE_PORT         0
+#define IPM_ENABLE_PIN          0
+
+// DShot / PWM input on J4 P8.0: TCPWM counter 516 captures through
+// peri.tr_io_input[38] and drives line[516] for bidirectional DShot
+#define INPUT_PIN_PORT          8
+#define INPUT_PIN               0
+#define INPUT_PIN_HSIOM_SEL     10          // P8_0_TCPWM0_LINE516
+#define INPUT_PIN_TR_IO_INPUT   38          // P8_0_PERI_TR_IO_INPUT38
+#define IC_TIMER_REGISTER       TCPWM_CNT(2, 4)
+#define IC_TIMER_IRQ            tcpwm_0_interrupts_516_IRQn
+#define INPUT_DMA_CHANNEL       0           // DataWire 0 channel 0
+#define IC_DMA_IRQ_NAME         cpuss_interrupts_dw0_0_IRQn
+
+// Serial telemetry on P9.3, SCB0 UART TX (J-Link VCOM on the kit)
+#define SERIAL_TELEMETRY_SCB    SCB0
+#define SERIAL_TELEMETRY_PORT   9
+#define SERIAL_TELEMETRY_PIN    3
+#define SERIAL_TELEMETRY_HSIOM_SEL 14       // P9_3_SCB0_UART_TX
+#define TELEM_DMA_CHANNEL       1           // DataWire 0 channel 1
+
+// HPPASS SAR channels, to be checked against the kit schematic (AN_A0..AN_A4)
+#define VOLTAGE_ADC_CHANNEL     0
+#define CURRENT_ADC_CHANNEL     1
+#define ADC_DMA_CHANNEL         2           // DataWire 0 channel 2
+
+// BEMF comparators: HPPASS CSG slices. The 2GO kit does not route the phase
+// voltages to the MCU, the inputs are placeholders until the dividers are fitted
+#define PHASE_A_COMP_CSG        0
+#define PHASE_B_COMP_CSG        1
+#define PHASE_C_COMP_CSG        2
+
+// status LED
+#define LED_PORT                7
+#define LED_PIN                 0
+#endif
 /************************************ G031 Hardware Groups
  * ************************************************/
 
@@ -5823,6 +5910,33 @@
 #define USE_ADC
 #endif
 
+// Infineon PSOC Control C3 (PSC3M5), see Mcu/psc3
+#ifdef MCU_PSC3
+#define INFINEON
+#define CPU_FREQUENCY_MHZ   180     // CLK_HF0 for the CPU and the TCPWM / peripheral clocks
+#ifndef EEPROM_START_ADD
+#define EEPROM_START_ADD    (uint32_t)0x1203FC00    // last 1 kB of the 256 kB flash, secure alias
+#endif
+
+// TCPWM counters, TCPWM_CNT(group, counter). The counter clocks come from
+// PERI_PCLK dividers, see Mcu/psc3/Inc/peripherals.h
+#define INTERVAL_TIMER      TCPWM_CNT(2, 0)     // counter 512, 2 MHz free running
+#define COM_TIMER           TCPWM_CNT(2, 1)     // counter 513, 2 MHz one shot
+#define UTILITY_TIMER       TCPWM_CNT(2, 2)     // counter 514, 1 MHz free running
+#define TEN_KHZ_TIMER       TCPWM_CNT(2, 3)     // counter 515, LOOP_FREQUENCY_HZ
+
+#define DEVINFO_ADDRESS     (0x12001000 - 32)
+
+#ifndef TARGET_MIN_BEMF_COUNTS
+#define TARGET_MIN_BEMF_COUNTS 3
+#endif
+#define COM_TIMER_IRQ           tcpwm_0_interrupts_513_IRQn
+#define TEN_KHZ_TIMER_IRQ       tcpwm_0_interrupts_515_IRQn
+#define COMPARATOR_IRQ          pass_interrupt_csg_cmps_IRQn
+#define DSHOT_PRIORITY_THRESHOLD 60
+#define USE_ADC
+#endif
+
 #ifdef MCU_CH32V203
 #define WCH
 #define NEED_INPUT_READY
@@ -5872,6 +5986,11 @@
 // the SITL harness provides the real main(), the firmware main() is
 // started by the harness under this name
 #define main am32_main
+#endif
+
+#ifndef DEVINFO_ADDRESS
+// bootloader device info, 32 bytes at the end of the 4k bootloader
+#define DEVINFO_ADDRESS (0x1000 - 32)
 #endif
 
 #ifndef LOOP_FREQUENCY_HZ
