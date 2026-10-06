@@ -722,6 +722,9 @@ void loadEEpromSettings()
 #ifdef WCH
             TIM1->BDTR |= dead_time_override;
 #endif
+#ifdef INFINEON
+        setPwmDeadTime(dead_time_override);
+#endif
         }
         if (eepromBuffer.limits.temperature < 70 || eepromBuffer.limits.temperature > 140) {
             eepromBuffer.limits.temperature = 255;
@@ -1657,6 +1660,9 @@ void zcfoundroutine()
 //	COM_TIMER->MSR[0] = waitTime;
 	COM_TIMER->MR[0] = waitTime;
 #endif
+#ifdef INFINEON
+    COM_TIMER->PERIOD = waitTime;
+#endif
 
     commutate();
     bemfcounter = 0;
@@ -2158,7 +2164,7 @@ if(zero_crosses < 5){
             //Start ADC conversion
             startADCConversion();
 #endif
-#ifdef WCH
+#if defined(WCH) || defined(INFINEON)
             startADCConversion( );
             converted_degrees = getConvertedDegrees(ADC_raw_temp);
 #endif

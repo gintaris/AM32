@@ -28,3 +28,13 @@ void enableADC_DMA(void)
 void ADC_DMA_Callback(void)
 {
 }
+
+void startADCConversion(void)
+{
+}
+
+int16_t getConvertedDegrees(uint16_t adcrawtemp)
+{
+    (void)adcrawtemp;
+    return 25;
+}
