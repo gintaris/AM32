@@ -26,6 +26,11 @@
 #define CSG_CLOCK_HZ            90000000UL
 #define PCLK_DIVIDE_CSG         (PSC3_COUNTER_CLOCK_HZ / CSG_CLOCK_HZ)
 
+// telemetry UART: SCB clock divider x oversampling per bit
+#define TELEM_BAUD              115200UL
+#define TELEM_UART_OVS          13UL
+#define PCLK_DIVIDE_UART        ((PSC3_COUNTER_CLOCK_HZ + TELEM_BAUD * TELEM_UART_OVS / 2UL) / (TELEM_BAUD * TELEM_UART_OVS))
+
 // terminal count every PERIOD + 1 ticks
 #define TEN_KHZ_TIMER_PERIOD    (TEN_KHZ_TIMER_HZ / LOOP_FREQUENCY_HZ - 1UL)
 

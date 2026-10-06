@@ -265,6 +265,18 @@ updates the virtual neutral.
   report the STM32 flash size codes in its device info (`checkDeviceInfo()`
   would move `eeprom_address` to an STM32 address)
 
+## Telemetry UART
+
+`Src/serial_telemetry.c`: SCB0 UART TX on P9.3 (HSIOM 14), which the kit's
+J-Link forwards as its virtual COM port, 115200 8N1 (180 MHz / 120 / 13
+oversampling = 115385 baud, +0.16 %, PCLK group 4 divider 0). The SCB FIFO
+holds 128 bytes in byte mode and the largest AM32 packet is 49 bytes, so
+`send_telem_DMA()` copies the packet into the TX FIFO and no DMA or
+interrupt is needed; a packet that does not fit behind the previous one is
+dropped. The SCB resets to MSB first and 16 bit FIFO elements, both are set
+to the UART values. The KISS packet code (`Src/kiss_telemetry.c`) is
+unchanged.
+
 ## Host unit tests
 
 ```
