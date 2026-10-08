@@ -41,7 +41,7 @@ typedef struct {
 
 static uint8_t applyTrims(void)
 {
-    const hppass_trims_t* trims = (const hppass_trims_t*)SFLASH->SAR_INFRA_TRIM_TABLE;
+    const hppass_trims_t* trims = (const hppass_trims_t*)PSC3_SFLASH->SAR_INFRA_TRIM_TABLE;
 
     if (trims->num_entries != HPPASS_TRIM_ENTRIES) {
         return 0;
@@ -56,7 +56,7 @@ static uint8_t applyTrims(void)
         *(volatile uint32_t*)addr = trims->entry[i].value;
     }
     for (uint32_t i = 0; i < 16U; i++) {
-        HPPASS->SARADC.CALLIN[i] = SFLASH->SAR_CAL_LIN_TABLE[i];
+        HPPASS->SARADC.CALLIN[i] = PSC3_SFLASH->SAR_CAL_LIN_TABLE[i];
     }
     return 1;
 }

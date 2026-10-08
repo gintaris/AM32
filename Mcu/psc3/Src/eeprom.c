@@ -11,7 +11,8 @@
  * sector 0 (checked by PSC3M5_FLASH.ld). The cache prefetch is switched off
  * during the write (TRM, read while write) and the cache is invalidated
  * afterwards because the firmware reads the settings through the cached
- * code bus alias. Erased flash reads 0x00 (ERASED_FLASH_BYTE).
+ * code bus alias. Erased flash reads 0x00, read_flash_bin() returns an
+ * erased settings row as the AM32 configurator defaults.
  */
 
 #include "eeprom.h"
@@ -37,9 +38,35 @@ void cpuss_interrupt_fm_cbus_IRQHandler(void)
     ROM_FUNC->cyboot_flash_irq_handler();
 }
 
+/*
+ * An erased PSC3 row reads 0x00, and zero is a valid value for most settings
+ * (beep volume 0, motor kv 0 ...). Erased STM32 flash reads 0xFF, which is no
+ * better: 0xFF turns flags like rc_car_reverse on, which switches the
+ * complementary PWM off. ESCs get their settings from the AM32 configurator
+ * or a factory image, so an erased row is returned as the configurator
+ * defaults (public/assets/eeprom_default.bin, as in Src/DroneCAN/DroneCAN.c)
+ * with the rest, including the startup tune, as 0xFF. main() then writes it
+ * with the current version.
+ */
+static const uint8_t default_settings[48] = {
+    0x01, 0x03, 0x01, 0x01, 0x23, 0xa0, 0x04, 0x00, 0x0a, 0x64, 0x00, 0x32, 0x02, 0x00, 0x35, 0x31,
+    0x20, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x1a, 0x18, 0x64, 0x37, 0x0e, 0x00, 0x00, 0x05, 0x00,
+    0x80, 0x80, 0x80, 0x32, 0x00, 0x32, 0x00, 0x00, 0x0f, 0x0a, 0x0a, 0x8d, 0x66, 0x06, 0x01, 0x00
+};
+
 void read_flash_bin(uint8_t* data, uint32_t add, int out_buff_len)
 {
     memcpy(data, (const void*)add, out_buff_len);
+    for (int i = 0; i < out_buff_len; i++) {
+        if (data[i] != 0U) {
+            return;
+        }
+    }
+    memset(data, 0xFF, out_buff_len);
+    if (add == EEPROM_START_ADD) {
+        const int n = out_buff_len < (int)sizeof(default_settings) ? out_buff_len : (int)sizeof(default_settings);
+        memcpy(data, default_settings, n);
+    }
 }
 
 void save_flash_nolib(uint8_t* data, int length, uint32_t add)

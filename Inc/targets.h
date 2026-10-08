@@ -3398,9 +3398,15 @@
 #define FIRMWARE_NAME           "IFX_2GO_PSC3"
 #define DEAD_TIME               60          // TCPWM clock cycles at 180 MHz, 333 ns
 #define HARDWARE_GROUP_PSC3_2GO
-#define TARGET_VOLTAGE_DIVIDER  110         // TODO check the kit schematic
-#define CURRENT_OFFSET          0           // millivolts, TODO
-#define MILLIVOLT_PER_AMP       20          // TODO
+// kit schematic 630-60706-01 rev 02: IPM V+ is the USB VBUS (5 V, R71),
+// DC link divider R37 47k / R38 9.1k, 1 ohm shunt R16 with gain 10 (U6)
+// and 1.65 V offset
+#define TARGET_VOLTAGE_DIVIDER  62          // (47k + 9.1k) / 9.1k = 6.16
+#define CURRENT_OFFSET          1650        // millivolts
+#define MILLIVOLT_PER_AMP       10000       // 1 ohm x 10
+// the kit motor runs from 5 V instead of a 3-6S battery: 8x the tone duty
+// (6 % at volume 5) to make the startup tune audible
+#define TONE_DUTY_GAIN          8U
 #define USE_SERIAL_TELEMETRY
 #endif
 
@@ -5453,7 +5459,7 @@
 #define PHASE_C_LOW_CNT         4
 #define PHASE_C_LOW_COMPL       0
 
-// IPM enable, EN_IPM in the BSP. Polarity to be checked on the schematic
+// IPM enable: EN_IPM -> R63 4.7k -> IRSM836 EN, active high
 #define IPM_ENABLE_PORT         0
 #define IPM_ENABLE_PIN          0
 #define IPM_ENABLE_ACTIVE       1
@@ -5479,15 +5485,15 @@
 // amplifier, AN_A3 thermistor, AN_A4 DC link divider, AN_B4 potentiometer
 #define VOLTAGE_ADC_CHANNEL     4           // AN_A4
 #define CURRENT_ADC_CHANNEL     2           // AN_A2
-#define TEMP_ADC_CHANNEL        3           // AN_A3 thermistor, part to be checked on the schematic
+#define TEMP_ADC_CHANNEL        3           // AN_A3: 100k NTC TH1 to GND, 100k R59 to VDDA
 #define ADC_DMA_CHANNEL         2           // DataWire 0 channel 2
 #define ADC_DMA_IRQ             cpuss_interrupts_dw0_2_IRQn
 
 // BEMF comparators: HPPASS CSG slice k compares AN_Ak / AN_Bk (+) with its
 // DAC or with AN_A(k+1) / AN_B(k+1) (-). The kit does not route the phase
 // voltages to the MCU. Rework: phase dividers (same ratio as the DC link
-// divider) on J4 AN_B2, AN_B3 and on AN_B4 with the potentiometer R20 wiper
-// lifted. No neutral input is left, so the DACs give a virtual neutral of
+// divider) on J4 AN_B2, AN_B3 and on AN_B4 with R21 (1k from the potentiometer
+// wiper R20) removed. No neutral input is left, so the DACs give a virtual neutral of
 // VBUS / 2 from the DC link measurement (see Mcu/psc3/README.md for the limits)
 #define PHASE_A_COMP_CSG        2
 #define PHASE_A_COMP_POS        CSG_POS_AN_B    // AN_B2
@@ -5946,7 +5952,6 @@
 #ifndef EEPROM_START_ADD
 #define EEPROM_START_ADD    (uint32_t)0x1203FC00    // last 1 kB of the 256 kB flash, secure alias
 #endif
-#define ERASED_FLASH_BYTE   0x00    // PSC3 flash reads 0 after an erase (valEmpty of the Infineon flash loader)
 
 // TCPWM counters, TCPWM_CNT(group, counter). The counter clocks come from
 // PERI_PCLK dividers, see Mcu/psc3/Inc/peripherals.h

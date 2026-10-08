@@ -143,9 +143,10 @@ void pass_interrupt_sar_entry_done_0_IRQHandler(void)
 #endif
 
 /*
- * Thermistor on AN_A3 to degrees C. Placeholder until the kit schematic is
- * checked: 10 k NTC (B 3380) to ground with a 10 k pull-up to 3.3 V. The
- * table holds the temperature at every 64th ADC count.
+ * Thermistor on AN_A3 to degrees C: NTC to ground with a pull-up of the same
+ * resistance to VDDA (kit: 100 k TH1, 100 k R59; the B constant of TH1 is
+ * not in the schematic, the table uses B 3380). The table holds the
+ * temperature at every 64th ADC count.
  */
 static const int16_t ntc_table[65] = {
     150, 150, 150, 133, 119, 108, 100, 93, 87, 82, 77, 73, 69, 66, 63, 60, 57,
