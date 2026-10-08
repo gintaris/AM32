@@ -1,0 +1,20 @@
+// J-Link Commander script for the KIT_PSC3M5_2GO: first bring-up test.
+// Programs the boot stub and the LED blink test (P7.0 at 1 Hz), then runs it.
+// From the repository root, after make psc3_boot_stub and make psc3_blink:
+//   JLink -CommanderScript Mcu/psc3/jlink_blink.jlink
+// J-Link has no PSC3M5 part name: PSC3xxF is the generic 256 kB PSC3. Its
+// flash loader takes the S-AHB alias 0x32000000 only, not the C-AHB alias
+// 0x12000000 the images are linked for, so the binaries are loaded there.
+device PSC3xxF
+si SWD
+speed 4000
+connect
+r
+h
+loadbin obj/PSC3_BOOT_STUB.bin 0x32000000
+loadbin obj/PSC3_BLINK.bin 0x32001000
+verifybin obj/PSC3_BOOT_STUB.bin 0x32000000
+verifybin obj/PSC3_BLINK.bin 0x32001000
+r
+g
+exit

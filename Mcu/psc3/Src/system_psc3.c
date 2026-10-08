@@ -103,7 +103,7 @@ static void setMemoryTrimsOd(void)
 // raise VCCD to 1.2 V (OD mode), runs from the 8 MHz IMO
 static void setCoreVoltageOd(void)
 {
-    const uint32_t trim = SFLASH->LDO_1P2V_TRIM & SRSS_PWR_TRIM_PWRSYS_CTL_ACT_REG_TRIM_Msk;
+    const uint32_t trim = PSC3_SFLASH->LDO_1P2V_TRIM & SRSS_PWR_TRIM_PWRSYS_CTL_ACT_REG_TRIM_Msk;
 
     if ((SRSS->PWR_TRIM_PWRSYS_CTL & SRSS_PWR_TRIM_PWRSYS_CTL_ACT_REG_TRIM_Msk) == trim) {
         psc3_core_voltage_od = 1;
@@ -112,7 +112,7 @@ static void setCoreVoltageOd(void)
     if (!voltageChangePossible()) {
         return;
     }
-    SRSS_PWR_TRIM_WAKE_CTL = (SFLASH->PWR_TRIM_WAKE_CTL & SFLASH_PWR_TRIM_WAKE_CTL_WAKE_DELAY_1P2V_Msk)
+    SRSS_PWR_TRIM_WAKE_CTL = (PSC3_SFLASH->PWR_TRIM_WAKE_CTL & SFLASH_PWR_TRIM_WAKE_CTL_WAKE_DELAY_1P2V_Msk)
         >> SFLASH_PWR_TRIM_WAKE_CTL_WAKE_DELAY_1P2V_Pos;
     delayLoop(100);         // >= 3 us
     setMemoryTrimsOd();     // write assist

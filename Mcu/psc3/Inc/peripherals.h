@@ -74,8 +74,22 @@ static inline void setPwmPeriod(uint32_t relval)
     pwmTrigger(PWM_TRIG_SWITCH);
 }
 
+// AM32 plays its tones with the PWM prescaler set and a duty of at most 33
+// counts, sized for an STM32 TIM1 period of about 2000 counts. While a
+// prescaler is set (pwm_prescaler != 0) the duty is scaled to the PSC3 period
+extern uint16_t pwm_prescaler;
+// TONE_DUTY_GAIN (targets.h) makes the tones louder on low voltage boards
+#define STM32_TONE_PERIOD   2000U
+#ifndef TONE_DUTY_GAIN
+#define TONE_DUTY_GAIN      1U
+#endif
+#define PWM_TONE_DUTY(dc)   ((dc) * TONE_DUTY_GAIN * (TIM1_AUTORELOAD + 1U) / STM32_TONE_PERIOD)
+
 static inline void setPwmDutyAll(uint32_t newdc)
 {
+    if (pwm_prescaler != 0U) {
+        newdc = PWM_TONE_DUTY(newdc);
+    }
     PWM_TIMER(4)->CC0_BUFF = newdc;
     PWM_TIMER(5)->CC0_BUFF = newdc;
     PWM_TIMER(6)->CC0_BUFF = newdc;

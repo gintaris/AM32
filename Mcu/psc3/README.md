@@ -168,7 +168,7 @@ reach the MCU, so BEMF sensing needs a rework:
 | --- | --- | --- | --- | --- |
 | A (U) | 2 | AN_B2 | J4 | DAC2 |
 | B (V) | 3 | AN_B3 | J4 | DAC3 |
-| C (W) | 4 | AN_B4 | potentiometer R20 wiper (lift it) | DAC4 |
+| C (W) | 4 | AN_B4 | M_SPEED_POT net, remove R21 (1k from the potentiometer R20) | DAC4 |
 
 The phase dividers need the ratio of the DC link divider on AN_A4; the DACs
 then hold VBUS / 2 (`compReferenceFromBus()` from the 12 bit DC link reading).
@@ -259,8 +259,15 @@ updates the virtual neutral.
   invalidated afterwards (the settings are read through the cached C-AHB
   alias)
 - erased PSC3 flash reads 0x00 (`valEmpty` of the Infineon flash loader
-  `PSC3xxE.FLM`), so the target sets `ERASED_FLASH_BYTE` 0x00 for the startup
-  tune check in `sounds.c`
+  `PSC3xxE.FLM`). Zero settings are valid values (found on the kit: beep
+  volume 0, silent startup tune), and 0xFF like an erased STM32 page is no
+  better (rc_car_reverse on switches the complementary PWM off, so the
+  IRSM836 bootstrap capacitors never charge). `read_flash_bin()` returns an
+  all-zero settings row as the AM32 configurator defaults (the table of
+  `Src/DroneCAN/DroneCAN.c`), the tune and the CAN block as 0xFF
+- tones: the PWM prescaler is the PCLK divider and slows the TCPWM dead time
+  down too, so `setPwmPrescaler()` scales the dead time and the tone duty
+  (sized for an STM32 period of about 2000) while a prescaler is set
 - a future AM32 bootloader for the PSC3 must use the same row and must not
   report the STM32 flash size codes in its device info (`checkDeviceInfo()`
   would move `eeprom_address` to an STM32 address)
@@ -301,9 +308,21 @@ The build copies `openocd.cfg` and `PSC3M5.svd` to `obj/`, and `obj/debug.elf`
 is the last built firmware. The firmware needs the boot stub (or a bootloader)
 at 0x12000000.
 
-- J-Link Commander (SEGGER J-Link software, the kit has a J-Link LITE):
-  `JLink -CommandFile Mcu/psc3/jlink_flash.jlink` loads the stub and
-  `obj/debug.elf`. Check the device name with `ExpDevList` first.
+- J-Link Commander (SEGGER J-Link software V9.84 tested, the kit has a
+  J-Link LITE): `JLink -CommanderScript Mcu/psc3/jlink_blink.jlink` loads
+  the stub and the blink test, `Mcu/psc3/jlink_flash.jlink` the stub and the
+  firmware. J-Link has no PSC3M5 part name, the generic `PSC3xxF` (256 kB)
+  works. Its flash loader only takes the S-AHB alias 0x32000000, so the
+  scripts load the `.bin` files there (`loadbin`), not the 0x12000000 hex/elf.
+- SFLASH: the secure aliases 0x13400000/0x33400000 of the trim rows give a
+  bus fault on the kit (found on the first boot, HardFault in `SystemInit`),
+  the code reads them through the non-secure alias (`PSC3_SFLASH`,
+  0x03400000).
+- Pins: all ports come out of reset non-secure (`HSIOM->SECURE_PRT[n].
+  NONSECURE_MASK` = all ones) and their GPIO/HSIOM registers then ignore the
+  secure CPU (writes lost, reads 0). `SystemClock_Config()` makes all pins
+  secure. J-Link reads the peripherals as non-secure, so the secure GPIO
+  state is not visible in `mem32`; read it into RAM to check it.
 - Infineon OpenOCD (ModusToolbox Programming Tools, upstream OpenOCD has no
   PSC3 target):
 

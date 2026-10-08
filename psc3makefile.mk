@@ -45,6 +45,7 @@ obj/PSC3_BOOT_STUB.hex: $(HAL_FOLDER_PSC3)/Boot/boot_stub.c $(HAL_FOLDER_PSC3)/B
 		-Wl,--print-memory-usage -T$(HAL_FOLDER_PSC3)/Boot/boot_stub.ld \
 		-o $(@:.hex=.elf) $(HAL_FOLDER_PSC3)/Boot/boot_stub.c
 	$(QUIET)$(OBJCOPY) -O ihex $(@:.hex=.elf) $@
+	$(QUIET)$(OBJCOPY) -O binary $(@:.hex=.elf) $(@:.hex=.bin)
 
 PSC3_BLINK_SRC := $(HAL_FOLDER_PSC3)/Test/blink.c $(HAL_FOLDER_PSC3)/Startup/startup_psc3.c \
 	$(HAL_FOLDER_PSC3)/Src/system_psc3.c
@@ -54,6 +55,7 @@ obj/PSC3_BLINK.hex: $(PSC3_BLINK_SRC) $(LDSCRIPT_PSC3)
 	$(QUIET)$(MKDIR) -p obj
 	$(QUIET)$(CC) $(PSC3_TOOLS_CFLAGS) -T$(LDSCRIPT_PSC3) -o $(@:.hex=.elf) $(PSC3_BLINK_SRC)
 	$(QUIET)$(OBJCOPY) -O ihex $(@:.hex=.elf) $@
+	$(QUIET)$(OBJCOPY) -O binary $(@:.hex=.elf) $(@:.hex=.bin)
 
 # host unit tests of the PSC3 MCU layer, set HOSTCC if cc is not a C compiler
 .PHONY: psc3_test

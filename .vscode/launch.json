@@ -99,7 +99,7 @@
         "name": "AM32 PSC3 JLink",
         "cwd": "${workspaceRoot}",
         "servertype": "jlink",
-        "device": "PSC3M5FDS2LGQ1",
+        "device": "PSC3xxF",
         "interface": "swd",
         "executable": "${workspaceRoot}/obj/debug.elf",
         "loadFiles": ["${workspaceRoot}/obj/PSC3_BOOT_STUB.elf", "${workspaceRoot}/obj/debug.elf"],

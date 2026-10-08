@@ -98,6 +98,12 @@ void SystemClock_Config(void)
     enablePeriSlave(CY_MMIO_PASS_GROUP_NR, CY_MMIO_PASS_SLAVE_NR);
     enablePeriSlave(CY_MMIO_SCB0_GROUP_NR, CY_MMIO_SCB0_SLAVE_NR);
 
+    // all pins come out of reset non-secure (HSIOM NONSECURE_MASK), and the
+    // GPIO and HSIOM registers of a non-secure pin ignore the secure CPU
+    for (uint32_t prt = 0; prt < IOSS_GPIO_GPIO_PORT_NR; prt++) {
+        HSIOM->SECURE_PRT[prt].NONSECURE_MASK = 0;
+    }
+
     setPclkDivider(PCLK_DIV_PWM, 1);
     setPclkDivider(PCLK_DIV_INPUT, 1);
     setPclkDivider(PCLK_DIV_2MHZ, PCLK_DIVIDE_2MHZ);
@@ -174,10 +180,6 @@ void reloadWatchDogCounter(void)
     (void)SRSS->SRSS_INTR;
 }
 
-void setPwmPrescaler(uint16_t presc)
-{
-    setPclkDivider(PCLK_DIV_PWM, (uint32_t)presc + 1);
-}
 
 // TCPWM counter settings for the PWM counters
 #define TCPWM_MODE_TIMER        0UL
@@ -200,11 +202,50 @@ static void writeDeadTime(TCPWM_GRP_CNT_Type* cnt, uint32_t deadtime)
     cnt->DT_BUFF = dt;
 }
 
-void setPwmDeadTime(uint16_t deadtime)
+uint16_t pwm_prescaler;
+static uint16_t pwm_dead_time = DEAD_TIME;
+
+static void writeDeadTimeAll(uint32_t deadtime)
 {
     for (uint32_t n = PWM_CNT_FIRST; n <= PWM_CNT_LAST; n++) {
         writeDeadTime(PWM_TIMER(n), deadtime);
     }
+}
+
+void setPwmDeadTime(uint16_t deadtime)
+{
+    pwm_dead_time = deadtime;
+    writeDeadTimeAll(pwm_prescaler != 0U ? 1U : deadtime);
+}
+
+/*
+ * The prescaler is the PCLK divider of the PWM counters (presc + 1, like the
+ * STM32 PSC register). It slows the TCPWM dead time down as well, which the
+ * STM32 dead time generator does not do: with the 60 count dead time at
+ * 180 MHz / 56 no tone pulse (at most 33 counts) would get through. So while
+ * a prescaler is set the dead time is cut to the same time in divided clocks,
+ * and the duty already set for the tone is scaled to the PSC3 period.
+ */
+void setPwmPrescaler(uint16_t presc)
+{
+    const uint32_t div = (uint32_t)presc + 1U;
+
+    if (presc != 0U && pwm_prescaler == 0U) {
+        const uint32_t dc = PWM_TONE_DUTY(PWM_TIMER(4)->CC0_BUFF);
+        PWM_TIMER(4)->CC0_BUFF = dc;
+        PWM_TIMER(5)->CC0_BUFF = dc;
+        PWM_TIMER(6)->CC0_BUFF = dc;
+        PWM_TIMER(5)->CC1_BUFF = dc >> 1;
+    }
+    pwm_prescaler = presc;
+    if (presc != 0U) {
+        const uint32_t dt = pwm_dead_time / div;
+        writeDeadTimeAll(dt != 0U ? dt : 1U);
+    } else {
+        writeDeadTimeAll(pwm_dead_time);
+    }
+    setPclkDivider(PCLK_DIV_PWM, div);
+    pwmTrigger(PWM_TRIG_SWITCH);
 }
 
 /*

@@ -1,0 +1,28 @@
+// Power stage check for the KIT_PSC3M5_2GO, with the AM32 firmware flashed:
+// halts the CPU and drives phase U low and phase W high with 10 % PWM at
+// 24 kHz for 30 s, then resets. The motor should lock in one position and
+// resist turning by hand. Run from the repository root:
+//   JLink -CommanderScript Mcu/psc3/Test/jlink_hold_test.jlink
+// Counter 260: line P4.0 WL, line_compl P4.1 VL; counter 261: line P4.2 UL,
+// line_compl P4.3 WH (Inc/targets.h, HARDWARE_GROUP_PSC3_2GO)
+device PSC3xxF
+si SWD
+speed 4000
+connect
+sleep 1500
+h
+// CC0 = 750 of 7500 on counters 260 and 261
+w4 0x52A10410 0x2EE
+w4 0x52A10414 0x2EE
+w4 0x52A10510 0x2EE
+w4 0x52A10514 0x2EE
+// counter 260: WL = inverted PWM (bootstrap of W), VL low
+w4 0x52A10428 0x03
+w4 0x52A1042C 0x03
+// counter 261: UL = 1, WH = PWM
+w4 0x52A10528 0x21
+w4 0x52A1052C 0x21
+sleep 30000
+r
+g
+exit

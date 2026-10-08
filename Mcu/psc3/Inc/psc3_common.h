@@ -14,6 +14,12 @@
 // 16 bit counters 512..519
 #define TCPWM_CNT(grp, cnt) (&TCPWM0->GRP[grp].CNT[cnt])
 
+// SFLASH (trims, HPPASS tables) through the non-secure C-AHB alias: the
+// device header puts SFLASH at the secure alias 0x13400000, but on the
+// KIT_PSC3M5_2GO a secure read of the trim rows there (e.g. 0x134006E8)
+// gives a precise bus fault, while 0x034006E8 reads (checked with J-Link)
+#define PSC3_SFLASH ((const SFLASH_Type*)0x03400000UL)
+
 #define TCPWM_CMD_CAPTURE0  (1UL << TCPWM_GRP_CNT_TR_CMD_CAPTURE0_Pos)
 #define TCPWM_CMD_RELOAD    (1UL << TCPWM_GRP_CNT_TR_CMD_RELOAD_Pos)
 #define TCPWM_CMD_STOP      (1UL << TCPWM_GRP_CNT_TR_CMD_STOP_Pos)

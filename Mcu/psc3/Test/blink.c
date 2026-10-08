@@ -23,6 +23,14 @@ int main(void)
     GPIO_PRT_Type* port = &GPIO->PRT[BLINK_LED_PORT];
     const uint32_t shift = BLINK_LED_PIN * 4U;
 
+    // HSIOM and GPIO slaves on, as in SystemClock_Config()
+    PERI->GR[CY_MMIO_HSIOM_GROUP_NR].SL_CTL2 &= ~(1UL << CY_MMIO_HSIOM_SLAVE_NR);
+    PERI->GR[CY_MMIO_HSIOM_GROUP_NR].SL_CTL |= 1UL << CY_MMIO_HSIOM_SLAVE_NR;
+    PERI->GR[CY_MMIO_GPIO_GROUP_NR].SL_CTL2 &= ~(1UL << CY_MMIO_GPIO_SLAVE_NR);
+    PERI->GR[CY_MMIO_GPIO_GROUP_NR].SL_CTL |= 1UL << CY_MMIO_GPIO_SLAVE_NR;
+    // the pins come out of reset non-secure and then ignore the secure CPU
+    HSIOM->SECURE_PRT[BLINK_LED_PORT].NONSECURE_MASK &= ~(1UL << BLINK_LED_PIN);
+
     // HSIOM: GPIO (0), drive mode strong (6) with the input buffer on (bit 3)
     HSIOM->PRT[BLINK_LED_PORT].PORT_SEL0 &= ~(0xFFUL << (BLINK_LED_PIN * 8U));
     port->CFG = (port->CFG & ~(0xFUL << shift)) | (0xEUL << shift);
