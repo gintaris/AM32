@@ -333,6 +333,41 @@ at 0x12000000.
 - VS Code (Cortex-Debug): "AM32 PSC3 JLink" or "AM32 PSC3 OpenOCD" in
   `.vscode/launch.json`, both load the stub and the firmware, with the SVD.
 
+## Kit bring-up: BEMF with the SAR (BEMF_ADC)
+
+Run on the KIT_PSC3M5_2GO with the phase divider rework (AN_B2, AN_B3,
+AN_B4 with R21 removed, dividers matched to the DC link ratio within 1 %)
+and DShot600 from a flight controller (RP2350B). Findings, all in
+`Src/comparator_adc.c` and `Inc/comparator.h`:
+
+- comparator level: AM32 expects the STM32 level, '1' while the floating
+  phase is below the neutral (the STM32 targets have the phase on the minus
+  input). The emulation and the CSG variant had it inverted, so every second
+  step commutated at once and the others never
+- sampling point: in the middle of the on time the floating phase also
+  carries the voltage the di/dt of the driven windings couples into it (about
+  +20 % of VBUS on the kit motor at 5 V, even with the rotor standing still).
+  Below 45 % duty with complementary PWM the phases are sampled in the middle
+  of the off time and compared with `BEMF_OFF_THRESHOLD` above 0 V, above
+  55 % in the on time with VBUS / 2 (`bemfSamplePoint()`, peripherals.h)
+- demagnetization: after a commutation the new floating phase is clamped to
+  0 V while its current decays, which looks like a finished falling BEMF
+  cross. A cross needs the level before it first; if that does not show up
+  by the middle of the commutation interval, the cross is taken there
+- the first two samples after a commutation are ignored (switching spike)
+- `PSC3_BEMF_TRACE` (targets.h) records the floating phase sample, level
+  and step of every PWM period of a motor start in `bemf_trace` (8192
+  entries, 340 ms) for the debugger
+
+State at the end of the kit tests: the kit motor runs steadily at about 1 %
+throttle and loses sync above about 1.2 to 1.8 %. The traces show the steps
+after a falling cross much shorter than the others (about 3 ms against
+9.5 ms), so AM32 commutates almost at once after a falling cross instead of
+30 degrees later; the cause is still open. The kit is a hard bench for six
+step BEMF: the motor runs from 5 V, the BEMF is 10 to 25 ADC counts and the
+demagnetization is long. The timing work continues on the own ESC (4-8S,
+CSG comparators with a real neutral divider).
+
 ## Continuous integration
 
 `.github/workflows/CICD_build.yml`: `make -j8` builds `KIT_2GO_PSC3` with all

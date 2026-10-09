@@ -56,9 +56,13 @@ void initComparators(void)
     NVIC_EnableIRQ(COMPARATOR_IRQ);
 }
 
+// AM32 expects the level of the STM32 comparators, which have the phase on
+// the minus input: '1' while the phase is below the neutral. The CSG slices
+// have the phase on the plus input, so their output is inverted here and the
+// interrupt edge is swapped in changeCompInput()
 uint8_t getCompOutputLevel(void)
 {
-    return HPPASS->CSG.SLICE[active_slice].CMP_STATUS & HPPASS_CSG_SLICE_CMP_STATUS_CMP_VAL_Msk;
+    return (HPPASS->CSG.SLICE[active_slice].CMP_STATUS & HPPASS_CSG_SLICE_CMP_STATUS_CMP_VAL_Msk) ? 0U : 1U;
 }
 
 void maskPhaseInterrupts(void)
@@ -84,8 +88,9 @@ void changeCompInput(void)
         phase = 1;
     }
     active_slice = comp_slice[phase];
-    // rising BEMF: interrupt on the falling comparator edge, like the STM32 targets
-    HPPASS->CSG.SLICE[active_slice].CMP_CFG = cmpConfig(phase, rising ? CMP_EDGE_FALLING : CMP_EDGE_RISING);
+    // rising BEMF: the phase crosses the neutral upwards, a rising edge of the
+    // CSG output (a falling edge of the STM32 comparator level)
+    HPPASS->CSG.SLICE[active_slice].CMP_CFG = cmpConfig(phase, rising ? CMP_EDGE_RISING : CMP_EDGE_FALLING);
 }
 
 // set the virtual neutral of the slices that compare against their DAC

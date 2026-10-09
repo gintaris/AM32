@@ -53,6 +53,11 @@ void setCompReference(uint16_t dac);
 uint16_t compReferenceFromBus(uint16_t adc_raw_volts);
 void bemfAdcProcess(const uint16_t samples[3], uint16_t interval_count);
 
+#define BEMF_SAMPLE_ON          0U
+#define BEMF_SAMPLE_OFF         1U
+#define BEMF_OFF_THRESHOLD      4U
+extern volatile uint8_t bemf_sample_mode_req;
+
 extern volatile char rising;
 extern char step;
 
