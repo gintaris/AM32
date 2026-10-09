@@ -3407,6 +3407,7 @@
 // the kit motor runs from 5 V instead of a 3-6S battery: 8x the tone duty
 // (6 % at volume 5) to make the startup tune audible
 #define TONE_DUTY_GAIN          8U
+// #define PSC3_BEMF_TRACE                  // BEMF trace of the motor start (comparator_adc.c)
 #define USE_SERIAL_TELEMETRY
 #endif
 

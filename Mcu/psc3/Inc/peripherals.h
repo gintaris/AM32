@@ -85,6 +85,28 @@ extern uint16_t pwm_prescaler;
 #endif
 #define PWM_TONE_DUTY(dc)   ((dc) * TONE_DUTY_GAIN * (TIM1_AUTORELOAD + 1U) / STM32_TONE_PERIOD)
 
+#ifdef BEMF_ADC
+#include "comparator.h"
+extern volatile uint8_t temp_comp_pwm;
+
+// CC1 of counter 261 triggers the SAR phase samples (ADC.c): in the middle of
+// the off time below 45 % duty with complementary PWM, in the middle of the
+// on time above 55 % (hysteresis), see BEMF_SAMPLE_OFF in comparator.h
+static inline uint32_t bemfSamplePoint(uint32_t newdc)
+{
+    const uint32_t period = PWM_TIMER(5)->PERIOD_BUFF;
+    uint8_t mode = bemf_sample_mode_req;
+
+    if (!temp_comp_pwm || newdc * 100U > period * 55U) {
+        mode = BEMF_SAMPLE_ON;
+    } else if (newdc * 100U < period * 45U) {
+        mode = BEMF_SAMPLE_OFF;
+    }
+    bemf_sample_mode_req = mode;
+    return (mode == BEMF_SAMPLE_OFF) ? newdc + ((period - newdc) >> 1) : newdc >> 1;
+}
+#endif
+
 static inline void setPwmDutyAll(uint32_t newdc)
 {
     if (pwm_prescaler != 0U) {
@@ -93,8 +115,11 @@ static inline void setPwmDutyAll(uint32_t newdc)
     PWM_TIMER(4)->CC0_BUFF = newdc;
     PWM_TIMER(5)->CC0_BUFF = newdc;
     PWM_TIMER(6)->CC0_BUFF = newdc;
-    // CC1 of counter 261 triggers the SAR in the middle of the on time (ADC.c)
-    PWM_TIMER(5)->CC1_BUFF = newdc >> 1;
+#ifdef BEMF_ADC
+    PWM_TIMER(5)->CC1_BUFF = bemfSamplePoint(newdc);
+#else
+    PWM_TIMER(5)->CC1_BUFF = newdc >> 1;    // ADC trigger in the middle of the on time
+#endif
     pwmTrigger(PWM_TRIG_SWITCH);
 }
 

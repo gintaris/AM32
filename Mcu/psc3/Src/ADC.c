@@ -6,7 +6,8 @@
  *    temperature, started by startADCConversion() from the 1 kHz part of the
  *    main loop; ADC_DMA_Callback() picks up the previous results
  *  - entry 0 (BEMF_ADC targets): the three phase dividers sampled at the same
- *    time, triggered in the middle of every PWM on time by the CC1 match of
+ *    time, once every PWM period (middle of the off time at low duty, of the
+ *    on time at high duty, see bemfSamplePoint()) by the CC1 match of
  *    PWM counter 261 (tcpwm tr_out1[261] -> 1:1 trigger -> pass.tr_b_in[2] ->
  *    HPPASS TR2); its interrupt runs the comparator emulation
  *    (comparator_adc.c)
@@ -85,7 +86,7 @@ void ADC_Init(void)
     tr_in_sel |= TR_SEL_HW_B << HPPASS_INFRA_TR_IN_SEL_TR2_SEL_Pos;
     HPPASS->INFRA.HW_TR_MODE = TR_MODE_PULSE_POS << HPPASS_INFRA_HW_TR_MODE_HW_TR2_MODE_Pos;
 
-    // PWM counter 261: tr_out1 on the CC1 match (CC1 = duty / 2, peripherals.h)
+    // PWM counter 261: tr_out1 on the CC1 match (CC1 from bemfSamplePoint(), peripherals.h)
     PWM_TIMER(PWM_CNT_ADC_TRIGGER)->TR_OUT_SEL = (2UL << TCPWM_GRP_CNT_TR_OUT_SEL_OUT0_Pos)
         | (4UL << TCPWM_GRP_CNT_TR_OUT_SEL_OUT1_Pos);
     PERI->TR_1TO1_GR[TRIG_1TO1_GROUP_PASS].TR_CTL[HPPASS_TR_PWM] = PERI_TR_1TO1_GR_TR_CTL_TR_SEL_Msk;

@@ -56,12 +56,13 @@ int main(void)
             const int slice = floating_slice[st];
             CHECK(fake_hppass.CSG.CMP_INTR_MASK == (1U << slice), "step %d: mask %x", st,
                 (unsigned)fake_hppass.CSG.CMP_INTR_MASK);
-            // rising BEMF -> falling comparator edge (2), falling BEMF -> rising edge (1)
-            CHECK(edgeOf(slice) == (r ? 2U : 1U), "step %d rising %d: edge %u", st, r, (unsigned)edgeOf(slice));
+            // phase on the CSG + input: rising BEMF -> rising CSG edge (1), falling -> falling (2)
+            CHECK(edgeOf(slice) == (r ? 1U : 2U), "step %d rising %d: edge %u", st, r, (unsigned)edgeOf(slice));
+            // AM32 level as on the STM32: 1 while the phase is below the neutral
             fake_hppass.CSG.SLICE[slice].CMP_STATUS = 1;
-            CHECK(getCompOutputLevel() == 1, "step %d reads its slice", st);
+            CHECK(getCompOutputLevel() == 0, "step %d: phase above the neutral reads 0", st);
             fake_hppass.CSG.SLICE[slice].CMP_STATUS = 0;
-            CHECK(getCompOutputLevel() == 0, "step %d reads its slice", st);
+            CHECK(getCompOutputLevel() == 1, "step %d: phase below the neutral reads 1", st);
             maskPhaseInterrupts();
             CHECK(fake_hppass.CSG.CMP_INTR_MASK == 0, "masked");
         }
