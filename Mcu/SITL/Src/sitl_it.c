@@ -33,6 +33,12 @@ extern void motor_log_event(int kind, uint32_t a, uint32_t b, uint32_t c);
 
 static void comp_irq(void)
 {
+#ifdef SITL_PSC3_BEMF
+    // PSC3: the SAR interrupt runs the zero cross detection, which calls
+    // interruptRoutine() itself after its own blanking
+    sitl_psc3_bemf_irq();
+    return;
+#endif
     const uint32_t lines = SITL_EXTI_LINE_21 | SITL_EXTI_LINE_22;
     const uint32_t cnt = sitl_interval_timer_count();
     if (cnt > (uint32_t)(commutation_interval >> 1)) {

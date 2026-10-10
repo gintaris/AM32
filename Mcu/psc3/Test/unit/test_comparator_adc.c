@@ -153,6 +153,45 @@ int main(void)
     sample(1, 0, 501);
     CHECK(getCompOutputLevel() == 1, "middle of the interval: taken as crossed");
 
+    // off time skew: rising to falling cross 8 samples (2 blanked, 5 before
+    // the cross, the cross), falling to rising 12 (4 after the falling cross,
+    // 2 blanked, 5, the cross); the threshold above 0 V delays the rising and
+    // advances the falling cross. The falling cross is learned to be held
+    // (12 - 8) / 2 samples
+    commutation_interval = 1000;
+    int hold = -1;
+    for (int cycle = 0; cycle < 60; cycle++) {
+        step = 1;                           // C floats, rising BEMF
+        rising = 1;
+        changeCompInput();
+        blanking();
+        enableCompInterrupts();
+        for (int i = 0; i < 5; i++) {
+            sample(2, 0, 900);
+        }
+        before = zero_crosses;
+        sample(2, 100, 900);
+        CHECK(zero_crosses == before + 1, "rising cross at once, cycle %d", cycle);
+
+        step = 2;                           // A floats, falling BEMF
+        rising = 0;
+        changeCompInput();
+        blanking();
+        enableCompInterrupts();
+        for (int i = 0; i < 5; i++) {
+            sample(0, 100, 900);
+        }
+        before = zero_crosses;
+        hold = -1;
+        for (int i = 0; i < 5; i++) {
+            sample(0, 0, 900);
+            if (hold < 0 && zero_crosses != before) {
+                hold = i;
+            }
+        }
+    }
+    CHECK(hold == 2, "falling cross held 2 samples, got %d", hold);
+
     // back to on time sampling: the neutral applies again
     bemf_sample_mode_req = BEMF_SAMPLE_ON;
     sample(0, 1400, 700);
