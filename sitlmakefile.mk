@@ -72,9 +72,18 @@ SITL_COV_FLAGS :=
 endif
 
 # -funsigned-char matches the ARM targets, where char is unsigned
+# make AM32_SITL_CAN SITL_PSC3_BEMF=1 replaces the STM32 comparator
+# emulation with the BEMF sensing of the PSC3 port (Mcu/psc3 comparator_adc.c,
+# SAR samples once per PWM period), see Src/sitl_psc3_bemf.c
+ifeq ($(SITL_PSC3_BEMF),1)
+SITL_PSC3_FLAGS := -DSITL_PSC3_BEMF
+else
+SITL_PSC3_FLAGS :=
+endif
+
 CFLAGS_COMMON_$(MCU) := $(SITL_GCC_FLAGS) -funsigned-char -iquote $(MAIN_INC_DIR) -g3 -O2 \
 	-Wall -Wundef -Wextra -Werror -Wno-unused-parameter \
-	-fno-strict-aliasing -pthread $(SITL_SAN_FLAGS) $(SITL_COV_FLAGS)
+	-fno-strict-aliasing -pthread $(SITL_SAN_FLAGS) $(SITL_COV_FLAGS) $(SITL_PSC3_FLAGS)
 
 LDFLAGS_COMMON_$(MCU) := -pthread $(SITL_SAN_FLAGS) $(SITL_COV_FLAGS)
 

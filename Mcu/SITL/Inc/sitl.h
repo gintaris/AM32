@@ -190,3 +190,11 @@ void sitl_sensors_write(const sitl_sensors_t* in); // sim thread only
 // lifecycle
 void sitl_start_sim_thread(void);
 extern char** sitl_saved_argv;
+
+#ifdef SITL_PSC3_BEMF
+// PSC3 BEMF sensing, sitl_psc3_bemf.c
+uint32_t sitl_tim1_count(uint64_t now_ns);
+uint32_t sitl_psc3_sample_count(uint32_t ccr, uint32_t arr);
+void sitl_psc3_bemf_sample(const double v_phase[3], double vbus);
+void sitl_psc3_bemf_irq(void);
+#endif

@@ -19,6 +19,9 @@ volatile uint8_t sitl_comp_out;
 COMP_TypeDef* active_COMP = &sitl_comp_dummy[1];
 uint32_t current_EXTI_LINE = SITL_EXTI_LINE_22;
 
+#ifndef SITL_PSC3_BEMF
+// with SITL_PSC3_BEMF the PSC3 zero cross detection replaces these, see
+// sitl_psc3_bemf.c
 uint8_t getCompOutputLevel(void)
 {
     if (sitl_in_sim_thread()) {
@@ -73,3 +76,4 @@ void changeCompInput(void)
         sitl_exti.FTSR &= ~(SITL_EXTI_LINE_21 | SITL_EXTI_LINE_22);
     }
 }
+#endif /* SITL_PSC3_BEMF */

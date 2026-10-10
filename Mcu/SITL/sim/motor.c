@@ -825,6 +825,23 @@ void motor_step(uint64_t now_ns, uint32_t dt_ns)
         m.vn_cmp = v_star_raw;
     }
 
+#ifdef SITL_PSC3_BEMF
+    // PSC3 BEMF sensing (sitl_psc3_bemf.c): the SAR samples the three
+    // divider nodes once per PWM period at the TIM1 count of the PSC3
+    // trigger, in place of the continuous comparator below
+    {
+        static uint32_t prev_cnt;
+        uint32_t psc, arr, ccr[3];
+        sitl_tim1_get_active(&psc, &arr, ccr);
+        const uint32_t cnt = sitl_tim1_count(now_ns);
+        const uint32_t sp = sitl_psc3_sample_count(ccr[0], arr);
+        const bool wrapped = cnt < prev_cnt;
+        if ((cnt >= sp) && (wrapped || prev_cnt < sp)) {
+            sitl_psc3_bemf_sample(m.v_cmp, vbus);
+        }
+        prev_cnt = cnt;
+    }
+#else
     // comparator: filtered virtual neutral against the filtered
     // floating phase terminal
     const double v_neutral = m.vn_cmp;
@@ -891,6 +908,8 @@ void motor_step(uint64_t now_ns, uint32_t dt_ns)
             motor_log_event(MEV_EDGE, out, unmasked, 0);
         }
     }
+
+#endif /* SITL_PSC3_BEMF */
 
     check_desync_dump();
 
@@ -993,6 +1012,36 @@ void motor_log_commutation(int step)
     extern volatile uint16_t duty_cycle;
     extern uint16_t duty_cycle_maximum;
     motor_log_event(MEV_COMMUTATE, (uint32_t)step, duty_cycle, duty_cycle_maximum);
+
+    /*
+      optional commutation trace for step timing analysis: with
+      SITL_COMM_LOG=<file> every commutation from interrupt context is
+      written as "t step theta_e_deg rpm commutation_interval". Only the
+      sim thread writes the file, so a parked firmware thread cannot hold
+      its lock
+     */
+    static FILE* comm_log;
+    static int comm_log_lines;
+    static bool comm_log_init;
+    if (!comm_log_init) {
+        comm_log_init = true;
+        const char* path = getenv("SITL_COMM_LOG");
+        if (path != NULL && path[0] != '\0') {
+            comm_log = fopen(path, "w");
+        }
+    }
+    if (comm_log != NULL && sitl_in_sim_thread()) {
+        extern volatile uint32_t commutation_interval;
+        double deg = fmod(m.theta * (sitl_cfg.motor.poles / 2) * 180.0 / M_PI, 360.0);
+        if (deg < 0) {
+            deg += 360;
+        }
+        fprintf(comm_log, "%.7f %d %.2f %.0f %u\n", sitl_time_ns() * 1e-9, step, deg,
+            m.omega * 60.0 / TWO_PI, (unsigned)commutation_interval);
+        if (++comm_log_lines % 4096 == 0) {
+            fflush(comm_log);
+        }
+    }
 }
 
 static void check_desync_dump(void)

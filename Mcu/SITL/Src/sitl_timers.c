@@ -110,8 +110,22 @@ uint32_t sitl_tim1_dead_time_ns(void)
     return dead_ns;
 }
 
+#ifdef SITL_PSC3_BEMF
+extern uint32_t sitl_psc3_sample_point(uint32_t duty, uint32_t arr);
+
+// TIM1 count now, for the PSC3 SAR trigger in motor.c
+uint32_t sitl_tim1_count(uint64_t now_ns)
+{
+    return tim1_cnt(now_ns);
+}
+#endif
+
 void sitl_tim1_set_duty_all(uint16_t duty)
 {
+#ifdef SITL_PSC3_BEMF
+    // setPwmDutyAll() of the PSC3 port picks the BEMF sample point here
+    (void)sitl_psc3_sample_point(duty, tim1.arr_pre);
+#endif
     tim1.ccr_pre[0] = duty;
     tim1.ccr_pre[1] = duty;
     tim1.ccr_pre[2] = duty;
