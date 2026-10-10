@@ -6,6 +6,8 @@
 
 #include "peripherals.h"
 
+#include "edl7141.h"
+
 #include "ADC.h"
 #include "IO.h"
 #include "comparator.h"
@@ -34,7 +36,7 @@ void initAfterJump(void)
 
 // release an MMIO peripheral from reset and enable its clock (PERI group
 // slave control, Cy_SysClk_PeriGroupSlaveInit)
-static void enablePeriSlave(uint32_t group, uint32_t slave)
+void enablePeriSlave(uint32_t group, uint32_t slave)
 {
     PERI->GR[group].SL_CTL2 &= ~(1UL << slave);
     PERI->GR[group].SL_CTL |= 1UL << slave;
@@ -125,9 +127,11 @@ void SystemClock_Config(void)
 
 void MX_GPIO_Init(void)
 {
+#ifdef IPM_ENABLE_PORT
     // keep the IPM disabled until the gate outputs are configured
     gpioWrite(IPM_ENABLE_PORT, IPM_ENABLE_PIN, !IPM_ENABLE_ACTIVE);
     gpioSetMode(IPM_ENABLE_PORT, IPM_ENABLE_PIN, GPIO_DM_STRONG, HSIOM_SEL_GPIO);
+#endif
 
 #ifdef LED_PORT
 #ifdef LED_ACTIVE_LOW
@@ -417,9 +421,16 @@ void initCorePeripherals(void)
 void enableCorePeripherals(void)
 {
     startPwm();
+#ifdef IPM_ENABLE_PORT
     // the gate outputs are all off now, the IPM can be enabled
     gpioWrite(IPM_ENABLE_PORT, IPM_ENABLE_PIN, IPM_ENABLE_ACTIVE);
+#endif
     startTimers();
+#ifdef USE_6EDL7141
+    // gate outputs off and delayMicros() running: configure the 6EDL7141
+    // over SPI, then EN_DRV (result in edl7141_status)
+    (void)edl7141Start();
+#endif
     // DP7: start the ADC
 #ifdef USE_ADC
     enableADC_DMA();

@@ -292,8 +292,12 @@ make psc3_test HOSTCC=clang
 
 `Test/unit` builds `Src/phaseouts.c` against plain memory registers and checks
 every commutation step for both `comp_pwm` settings (no shoot through, expected
-phase states), plus the PWM, dead time, sound and timer clock arithmetic. On
-Windows the clang of the Visual Studio Build Tools works as `HOSTCC`.
+phase states), plus the PWM, dead time, sound and timer clock arithmetic.
+`test_edl7141` runs the 6EDL7141 start-up and fault handling against a
+simulated device (frame layout from the datasheet example, configuration
+with EN_DRV low and read back, no SPI answer, read back mismatch, charge pumps
+not coming up, nFAULT service). On Windows the clang of the Visual Studio
+Build Tools works as `HOSTCC`.
 
 ## Bring-up images
 
@@ -367,6 +371,40 @@ after a falling cross much shorter than the others (about 3 ms against
 step BEMF: the motor runs from 5 V, the BEMF is 10 to 25 ADC counts and the
 demagnetization is long. The timing work continues on the own ESC (4-8S,
 CSG comparators with a real neutral divider).
+
+## Own ESC target (ESC60A_PSC3) and the 6EDL7141
+
+`ESC60A_PSC3` (`HARDWARE_GROUP_PSC3_ESC60` in `Inc/targets.h`) follows the
+schematic ESC_PSC3_60A Rev 0.2: PSC3M5FDS2ABQ1 (E-LQFP-48, same pin numbers as
+VQFN-48), Infineon 6EDL7141 gate driver, 12x BSC014N06NS, TLI4971 current
+sensor. No board exists yet; the target builds and the driver logic is unit
+tested, nothing has run on hardware.
+
+- PWM: each phase on the line / line_compl pair of one counter (P4.0/4.1 on
+  260, P4.2/4.3 on 261, P4.4/4.5 on 262) into INHx / INLx, so per phase duty
+  cycles and the sine start work
+- BEMF: CSG comparators with a real neutral (`PSC3_BEMF_CSG`), slice k with
+  AN_Bk (phase) against AN_A(k+1) (star of the phases)
+- 6EDL7141 over SPI (`Src/edl7141.c`, hooks in `Src/edl7141_hal.c`): SCB3 on
+  P6.0 MOSI, P6.1 MISO, P6.2 SCLK, nSCS on P6.3 as a GPIO, EN_DRV P7.1,
+  nFAULT P7.2. 24 bit frames (command, 7 bit address, 16 bit data, MSB
+  first), sent as three bytes at 2 MHz, CPOL 0 / CPHA 1; a read returns the
+  data in the same frame (datasheet Rev 1.04, section 7.1.2)
+- start-up (`edl7141Start()` from `enableCorePeripherals()`): the 6EDL7141
+  already powers the MCU (DVDD), so it is in STANDBY. DEVICE_ID check, then
+  the configuration with EN_DRV low and a read back of every register,
+  clear the faults, EN_DRV high and wait for both charge pumps (SUPPLY_ST).
+  On any failure EN_DRV stays low and `edl7141_status` says why (1 no SPI
+  answer, 2 read back, 3 charge pumps)
+- configuration (`Inc/edl7141.h`, a target can override each value):
+  6PWM, PVCC 12 V, dead time 120 ns instead of the 4.04 us reset value (the
+  PSC3 PWM inserts DEAD_TIME), gate current 400 mA source / 500 mA sink
+  instead of 200 mA (to be tuned on the board), current sense amplifiers off
+  (the current comes from the TLI4971)
+- faults: `edl7141Service()` in the 1 kHz ADC callback reads FAULT_ST on
+  nFAULT into `edl7141_fault_st`, counts it and clears the non latched faults
+- open: TLI4971-A120T5 sensitivity (`MILLIVOLT_PER_AMP` 10 is a placeholder),
+  OTP programming is not used
 
 ## Continuous integration
 

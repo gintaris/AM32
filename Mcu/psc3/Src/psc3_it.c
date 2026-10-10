@@ -74,7 +74,8 @@ void tcpwm_0_interrupts_515_IRQHandler(void)
 // first half of the commutation interval are ignored like on the STM32 targets
 void pass_interrupt_csg_cmps_IRQHandler(void)
 {
-    HPPASS->CSG.CMP_INTR = HPPASS->CSG.CMP_INTR;
+    const uint32_t pending = HPPASS->CSG.CMP_INTR;
+    HPPASS->CSG.CMP_INTR = pending;     // write 1 to clear
     (void)HPPASS->CSG.CMP_INTR;
     if (INTERVAL_TIMER_COUNT > (commutation_interval >> 1)) {
         interruptRoutine();

@@ -38,6 +38,13 @@ jobs:
           --suppress=missingIncludeSystem
           Mcu/psc3/Src Mcu/psc3/Startup Mcu/psc3/Boot
 
+      - name: PSC3 cppcheck (own ESC, 6EDL7141)
+        run: >
+          cppcheck --enable=warning,performance --inline-suppr --error-exitcode=1 -q
+          -DESC60A_PSC3 -DUSE_MAKE -DPSC3M5FDS2LGQ1 -IInc -IMcu/psc3/Inc
+          --suppress=missingIncludeSystem
+          Mcu/psc3/Src Mcu/psc3/Startup Mcu/psc3/Boot
+
   build:
     runs-on: ${{ matrix.os }}
 

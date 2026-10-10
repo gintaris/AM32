@@ -150,6 +150,7 @@ void startPwm(void);
 void initTimers(void);
 void startTimers(void);
 void setPclkDivider(uint32_t div16, uint32_t divide_by);
+void enablePeriSlave(uint32_t group, uint32_t slave);
 void pclkDivider16(uint32_t group, uint32_t div16, uint32_t divide_by);
 void connectPclk(en_clk_dst_t dst, uint32_t div16);
 
