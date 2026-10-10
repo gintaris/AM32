@@ -60,6 +60,7 @@ void edl7141Write(uint8_t reg, uint16_t value)
 static uint8_t fail(uint8_t status)
 {
     edl7141SetEnable(0);
+    edl7141SetBrake(1);
     edl7141_status = status;
     return status;
 }
@@ -68,6 +69,7 @@ uint8_t edl7141Start(void)
 {
     edl7141HwInit();
     edl7141SetEnable(0);
+    edl7141SetBrake(1);
 
     if ((edl7141Read(EDL_DEVICE_ID) & EDL_DEV_ID_Msk) != EDL_DEV_ID_VALUE) {
         return fail(EDL_ERR_ID);
@@ -83,6 +85,9 @@ uint8_t edl7141Start(void)
 
     edl7141Write(EDL_FAULTS_CLR, EDL_CLR_FLTS | EDL_CLR_LATCH);
 
+    // after the start-up the VSENSE pin is nBRAKE, held low by R2 until the
+    // MCU drives it high through D5
+    edl7141SetBrake(0);
     edl7141SetEnable(1);
     for (uint32_t i = 0; i < EDL_GATE_SUPPLY_POLLS; i++) {
         edl7141DelayUs(100);

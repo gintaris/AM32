@@ -89,9 +89,12 @@
 #ifndef EDL_CFG_SUPPLY
 #define EDL_CFG_SUPPLY          0x6000U
 #endif
-// PWM_CFG: 6PWM mode (b000), low side braking: AM32 drives every switch
+// PWM_CFG: 6PWM mode (b000), AM32 drives every switch. BRAKE_CFG (5:4) b10
+// High Z: VSENSE/nBRAKE is low whenever the MCU does not drive it (reset,
+// R2 to ground), and that must switch the bridge off, not brake through
+// the low sides
 #ifndef EDL_CFG_PWM
-#define EDL_CFG_PWM             0x0000U
+#define EDL_CFG_PWM             0x0020U
 #endif
 // IDRIVE_CFG: reset BBBBH = 200 mA everywhere, too slow for two paralleled
 // MOSFETs per switch. Source 400 mA (b1110), sink 500 mA (b1111) on both
@@ -134,9 +137,10 @@ extern volatile uint16_t edl7141_fault_count;
 extern volatile uint16_t edl7141_bad_reg;      // register that failed the read back
 
 // hardware hooks, edl7141_hal.c on the PSC3 and stubs in the host tests
-void edl7141HwInit(void);                      // SPI, nSCS high, EN_DRV low, nFAULT input
+void edl7141HwInit(void);                      // SPI, nSCS high, EN_DRV low, nBRAKE low, nFAULT input
 uint32_t edl7141SpiFrame(uint32_t frame);      // one 24 bit frame, returns the 24 bits read
 void edl7141SetEnable(uint8_t on);             // EN_DRV pin
+void edl7141SetBrake(uint8_t on);              // nBRAKE through D5: 1 = pin low (brake), 0 = high (run)
 uint8_t edl7141FaultActive(void);              // nFAULT pin low
 void edl7141DelayUs(uint32_t us);
 
