@@ -11,6 +11,7 @@
 // ---------------------------------------------------------------- simulated 6EDL7141
 static uint16_t regs[0x20];
 static int enabled;             // EN_DRV pin
+static int braking = 1;         // nBRAKE pin low
 static int enabled_at_write;    // EN_DRV level of the last configuration write
 static int fault_pin;           // nFAULT active
 static int frames;
@@ -80,7 +81,15 @@ uint32_t edl7141SpiFrame(uint32_t frame)
 
 void edl7141SetEnable(uint8_t on)
 {
+    if (on) {
+        CHECK(!braking, "nBRAKE released before EN_DRV");
+    }
     enabled = on;
+}
+
+void edl7141SetBrake(uint8_t on)
+{
+    braking = on;
 }
 
 uint8_t edl7141FaultActive(void)
@@ -108,7 +117,9 @@ int main(void)
     CHECK(edl7141_status == EDL_OK, "status ok");
     CHECK(enabled == 1, "EN_DRV high after the start");
     CHECK(enabled_at_write == 0, "configuration written with EN_DRV low (standby programmable)");
-    CHECK(regs[EDL_PWM_CFG] == 0x0000, "6PWM mode");
+    CHECK((regs[EDL_PWM_CFG] & 0x0007) == 0, "6PWM mode");
+    CHECK((regs[EDL_PWM_CFG] & 0x0030) == 0x0020, "nBRAKE low switches the bridge off (High Z)");
+    CHECK(!braking, "nBRAKE high after the start");
     CHECK(regs[EDL_DT_CFG] == EDL_CFG_DT, "dead time %04x", regs[EDL_DT_CFG]);
     CHECK(regs[EDL_DT_CFG] != 0x3131, "4 us reset dead time replaced");
     CHECK(regs[EDL_IDRIVE_CFG] == EDL_CFG_IDRIVE, "gate current");
@@ -128,6 +139,7 @@ int main(void)
     deviceReset();
     no_answer = 1;
     CHECK(edl7141Start() == EDL_ERR_ID, "no SPI answer: %u", edl7141_status);
+    CHECK(braking && !enabled, "a failed start leaves the bridge off and nBRAKE low");
     CHECK(enabled == 0, "EN_DRV low without SPI");
 
     // a register that does not take the value

@@ -4650,7 +4650,8 @@
 #define PHASE_C_LOW_COMPL       1
 
 // 6EDL7141 over SPI (Mcu/psc3/Src/edl7141.c): SCB3 on P6.0 MOSI -> SDI,
-// P6.1 MISO <- SDO, P6.2 SCLK; nSCS on P6.3 as a GPIO; EN_DRV P7.1; nFAULT P7.2
+// P6.1 MISO <- SDO, P6.2 SCLK; nSCS on P6.3 as a GPIO; EN_DRV P7.1; nFAULT P7.2;
+// nBRAKE (VSENSE/nBRAKE after the start-up) driven high from P2.2 through D5
 #define USE_6EDL7141
 #define EDL_SPI_SCB             SCB3
 #define EDL_SPI_PCLK            PCLK_SCB3_CLOCK_SCB_EN
@@ -4667,6 +4668,8 @@
 #define EDL_EN_PIN              1
 #define EDL_FAULT_PORT          7
 #define EDL_FAULT_PIN           2
+#define EDL_BRAKE_PORT          2
+#define EDL_BRAKE_PIN           2
 
 // DShot / PWM input on P8.0: TCPWM counter 516, as on the kit
 #define INPUT_PIN_PORT          8

@@ -39,6 +39,9 @@ void edl7141HwInit(void)
     gpioSetMode(EDL_EN_PORT, EDL_EN_PIN, GPIO_DM_STRONG, HSIOM_SEL_GPIO);
     gpioWrite(EDL_CS_PORT, EDL_CS_PIN, 1);
     gpioSetMode(EDL_CS_PORT, EDL_CS_PIN, GPIO_DM_STRONG, HSIOM_SEL_GPIO);
+    // nBRAKE (VSENSE pin) through D5: low lets R2 hold the brake on
+    gpioWrite(EDL_BRAKE_PORT, EDL_BRAKE_PIN, 0);
+    gpioSetMode(EDL_BRAKE_PORT, EDL_BRAKE_PIN, GPIO_DM_STRONG, HSIOM_SEL_GPIO);
     // nFAULT: open drain with an external pull-up to DVDD
     gpioSetMode(EDL_FAULT_PORT, EDL_FAULT_PIN, GPIO_DM_HIGHZ, HSIOM_SEL_GPIO);
 
@@ -98,6 +101,11 @@ uint32_t edl7141SpiFrame(uint32_t frame)
 void edl7141SetEnable(uint8_t on)
 {
     gpioWrite(EDL_EN_PORT, EDL_EN_PIN, on ? 1U : 0U);
+}
+
+void edl7141SetBrake(uint8_t on)
+{
+    gpioWrite(EDL_BRAKE_PORT, EDL_BRAKE_PIN, on ? 0U : 1U);
 }
 
 uint8_t edl7141FaultActive(void)
