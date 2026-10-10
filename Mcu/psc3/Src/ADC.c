@@ -19,6 +19,7 @@
 #include "ADC.h"
 
 #include "comparator.h"
+#include "edl7141.h"
 #include "peripherals.h"
 #include "targets.h"
 
@@ -125,6 +126,9 @@ void ADC_DMA_Callback(void)
     ADC_raw_current = (uint16_t)HPPASS->SAR.CFG.CHAN_RESULT[CURRENT_ADC_CHANNEL];
     ADC_raw_temp = (uint16_t)HPPASS->SAR.CFG.CHAN_RESULT[TEMP_ADC_CHANNEL];
     setCompReference(compReferenceFromBus(ADC_raw_volts));
+#ifdef USE_6EDL7141
+    edl7141Service();   // 1 kHz: gate driver faults (nFAULT)
+#endif
 }
 
 #ifdef BEMF_ADC

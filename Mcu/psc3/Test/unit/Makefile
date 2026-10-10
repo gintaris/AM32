@@ -9,7 +9,8 @@ CFLAGS := -std=c11 -Wall -Wextra -Werror -Wno-unused-parameter -O1 -DUSE_MAKE -D
 	-Istubs -I. -I$(ROOT)/Inc -I$(ROOT)/Mcu/psc3/Inc
 OUT := build
 
-TESTS := test_phaseouts test_pwm_math test_timer_math test_comparator test_comparator_adc test_dshot test_telemetry
+TESTS := test_phaseouts test_pwm_math test_timer_math test_comparator test_comparator_adc test_dshot test_telemetry \
+	test_edl7141
 
 .PHONY: test clean
 test: $(addprefix $(OUT)/,$(addsuffix .exe,$(TESTS)))
@@ -45,3 +46,7 @@ $(OUT)/test_dshot.exe: test_dshot.c $(ROOT)/Src/dshot.c stubs/*.h unit.h $(ROOT)
 $(OUT)/test_telemetry.exe: test_telemetry.c $(ROOT)/Src/kiss_telemetry.c stubs/*.h unit.h $(ROOT)/Mcu/psc3/Inc/psc3_timing.h $(ROOT)/Inc/targets.h
 	@mkdir -p $(OUT)
 	"$(HOSTCC)" $(CFLAGS) -o $@ test_telemetry.c $(ROOT)/Src/kiss_telemetry.c
+
+$(OUT)/test_edl7141.exe: test_edl7141.c $(ROOT)/Mcu/psc3/Src/edl7141.c $(ROOT)/Mcu/psc3/Inc/edl7141.h unit.h $(ROOT)/Inc/targets.h
+	@mkdir -p $(OUT)
+	"$(HOSTCC)" $(CFLAGS) -DUSE_6EDL7141 -o $@ test_edl7141.c $(ROOT)/Mcu/psc3/Src/edl7141.c
