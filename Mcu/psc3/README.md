@@ -412,8 +412,11 @@ tested, nothing has run on hardware.
   every `EDL_RETRY_MS` (500 ms) while the motor is stopped
   (`edl7141_retries` counts them), for boards where the gate driver gets its
   supply after the MCU
-- open: TLI4971-A120T5 sensitivity (`MILLIVOLT_PER_AMP` 10 is a placeholder),
-  OTP programming is not used
+- current: TLI4971-A120T5, range S1 10 mV/A (+-120 A), VREF 1.65 V
+  (datasheet Rev 1.20, table 4), so `MILLIVOLT_PER_AMP` 10 and
+  `CURRENT_OFFSET` 1650. Its output is not ratiometric; the datasheet asks for
+  4.7..8 nF on AOUT and 220 nF on VDD (application circuit, figure 7)
+- open: OTP programming of the 6EDL7141 is not used
 
 ## KIT_PSC3M5_EVK target (EVK_PSC3)
 
@@ -446,6 +449,8 @@ What is different from the ESC:
   ESD12VD3B: never more than 12 V
 - the power stage is usually powered after the EVK (USB): the 6EDL7141 start
   retry configures it once it answers
+- VBAT: the power input board #1 (12S class) divides 20k / 1.2k = 17.67, so
+  `TARGET_VOLTAGE_DIVIDER` 177
 
 Programming: KitProg3 on the USB-C connector with the Infineon OpenOCD and
 `Mcu/psc3/openocd_kitprog3.cfg` (as in "Programming and debugging", with this
