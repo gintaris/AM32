@@ -3419,8 +3419,8 @@
 #define DEAD_TIME               60          // TCPWM clock cycles at 180 MHz, 333 ns
 #define HARDWARE_GROUP_PSC3_ESC60
 #define TARGET_VOLTAGE_DIVIDER  110         // R80 20k / R81 2k
-#define CURRENT_OFFSET          1650        // millivolts, TLI4971 VREF = VDD / 2
-#define MILLIVOLT_PER_AMP       10          // TLI4971-A120T5, TODO check the sensitivity in its datasheet
+#define CURRENT_OFFSET          1650        // millivolts, TLI4971 VREF 1.65 V (semi-differential default)
+#define MILLIVOLT_PER_AMP       10          // TLI4971-A120T5 range S1 (+-120 A), datasheet Rev 1.20 table 4
 #define USE_SERIAL_TELEMETRY
 #endif
 
@@ -3433,9 +3433,10 @@
 #define FIRMWARE_NAME           "IFX_EVK_PSC3"
 #define DEAD_TIME               60          // TCPWM clock cycles at 180 MHz, 333 ns
 #define HARDWARE_GROUP_PSC3_EVK
-#define TARGET_VOLTAGE_DIVIDER  110         // power input board VBAT divider 20k / 2k
-#define CURRENT_OFFSET          1650        // millivolts, TLI4971 VREF = VDD / 2
-#define MILLIVOLT_PER_AMP       10          // TLI4971-A120T5, TODO check the sensitivity in its datasheet
+// power input board #1 (12S class): VBAT divider 20k / 1.2k = 17.67, 50.4 V -> 2.85 V
+#define TARGET_VOLTAGE_DIVIDER  177
+#define CURRENT_OFFSET          1650        // millivolts, TLI4971 VREF 1.65 V (semi-differential default)
+#define MILLIVOLT_PER_AMP       10          // TLI4971-A120T5 range S1 (+-120 A), datasheet Rev 1.20 table 4
 #define USE_SERIAL_TELEMETRY
 #endif
 
