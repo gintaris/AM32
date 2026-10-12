@@ -3424,6 +3424,21 @@
 #define USE_SERIAL_TELEMETRY
 #endif
 
+// Infineon KIT_PSC3M5_EVK (PSC3M5FDS2AFQ1, E-LQFP-80) as the controller of a
+// modular DEV ESC: a power stage with the 6EDL7141 plugs into the EVK headers
+// J5 / J24, a power input board with the TLI4971 feeds it. EVK rework: R6 off,
+// R7 0R on, so AN_B1 reaches J24-18 instead of the HRPWM RC filter
+#ifdef EVK_PSC3
+#define FILE_NAME               "EVK_PSC3"
+#define FIRMWARE_NAME           "IFX_EVK_PSC3"
+#define DEAD_TIME               60          // TCPWM clock cycles at 180 MHz, 333 ns
+#define HARDWARE_GROUP_PSC3_EVK
+#define TARGET_VOLTAGE_DIVIDER  110         // power input board VBAT divider 20k / 2k
+#define CURRENT_OFFSET          1650        // millivolts, TLI4971 VREF = VDD / 2
+#define MILLIVOLT_PER_AMP       10          // TLI4971-A120T5, TODO check the sensitivity in its datasheet
+#define USE_SERIAL_TELEMETRY
+#endif
+
 #ifdef  CRAWLMASTER_F031
 #define FILE_NAME "CRAWLMASTER_F031"
 #define FIRMWARE_NAME "HH CM F031"
@@ -4712,6 +4727,106 @@
 // status LED on P7.0, anode on 3.3 V through R42
 #define LED_PORT                7
 #define LED_PIN                 0
+#define LED_ACTIVE_LOW
+#endif
+
+#ifdef HARDWARE_GROUP_PSC3_EVK
+
+#define MCU_PSC3
+
+// Gate inputs INHx / INLx of the 6EDL7141: high and low side of each phase
+// on the line / line_compl pair of one TCPWM counter, so per phase duty
+// cycles and the sine start work (no NO_SINE_START)
+#define PWM_GPIO_PORT           4
+#define PWM_HSIOM_SEL           9           // P4_x_TCPWM0_LINE / LINE_COMPL
+
+#define PHASE_A_HIGH_PIN        0           // P4.0 INHA, line[260]
+#define PHASE_A_HIGH_CNT        4
+#define PHASE_A_HIGH_COMPL      0
+#define PHASE_A_LOW_PIN         1           // P4.1 INLA, line_compl[260]
+#define PHASE_A_LOW_CNT         4
+#define PHASE_A_LOW_COMPL       1
+
+#define PHASE_B_HIGH_PIN        2           // P4.2 INHB, line[261]
+#define PHASE_B_HIGH_CNT        5
+#define PHASE_B_HIGH_COMPL      0
+#define PHASE_B_LOW_PIN         3           // P4.3 INLB, line_compl[261]
+#define PHASE_B_LOW_CNT         5
+#define PHASE_B_LOW_COMPL       1
+
+#define PHASE_C_HIGH_PIN        4           // P4.4 INHC, line[262]
+#define PHASE_C_HIGH_CNT        6
+#define PHASE_C_HIGH_COMPL      0
+#define PHASE_C_LOW_PIN         5           // P4.5 INLC, line_compl[262]
+#define PHASE_C_LOW_CNT         6
+#define PHASE_C_LOW_COMPL       1
+
+// 6EDL7141 on the power stage over SPI (Mcu/psc3/Src/edl7141.c). P6.x is
+// the KitProg3 UART on the EVK, so SCB2 on the Arduino SPI pins: P7.1 MOSI
+// -> SDI (J5-14), P7.2 MISO <- SDO (J5-20), P7.0 SCLK (J5-18); nSCS on P7.3
+// as a GPIO (J5-16); EN_DRV P9.4 (J5-11); nFAULT P9.5 (J5-9); nBRAKE from
+// P3.0 (J5-24) through the Schottky diode on the power stage
+#define USE_6EDL7141
+#define EDL_SPI_SCB             SCB2
+#define EDL_SPI_PCLK            PCLK_SCB2_CLOCK_SCB_EN
+#define EDL_SPI_PERI_GROUP      CY_MMIO_SCB2_GROUP_NR
+#define EDL_SPI_PERI_SLAVE      CY_MMIO_SCB2_SLAVE_NR
+#define EDL_SPI_PORT            7
+#define EDL_SPI_MOSI_PIN        1
+#define EDL_SPI_MISO_PIN        2
+#define EDL_SPI_CLK_PIN         0
+#define EDL_SPI_HSIOM_SEL       17          // P7_x_SCB2_SPI_* (E-LQFP-80)
+#define EDL_CS_PORT             7
+#define EDL_CS_PIN              3
+#define EDL_EN_PORT             9
+#define EDL_EN_PIN              4
+#define EDL_FAULT_PORT          9
+#define EDL_FAULT_PIN           5
+#define EDL_BRAKE_PORT          3
+#define EDL_BRAKE_PIN           0
+
+// DShot / PWM input on P8.0 (J5-19 through R113): TCPWM counter 516
+#define INPUT_PIN_PORT          8
+#define INPUT_PIN               0
+#define INPUT_PIN_HSIOM_SEL     10          // P8_0_TCPWM0_LINE516
+#define INPUT_PIN_TR_IO_INPUT   38          // P8_0_PERI_TR_IO_INPUT38
+#define IC_TIMER_REGISTER       TCPWM_CNT(2, 4)
+#define IC_TIMER_IRQ            tcpwm_0_interrupts_516_IRQn
+#define INPUT_DMA_CHANNEL       0           // DataWire 0 channel 0
+#define IC_DMA_IRQ_NAME         cpuss_interrupts_dw0_0_IRQn
+
+// Serial telemetry on P9.3 (J24-3), SCB0 UART TX
+#define SERIAL_TELEMETRY_SCB    SCB0
+#define SERIAL_TELEMETRY_PORT   9
+#define SERIAL_TELEMETRY_PIN    3
+#define SERIAL_TELEMETRY_HSIOM_SEL 14       // P9_3_SCB0_UART_TX
+
+// HPPASS SAR inputs from the power input / power stage boards: AN_A0 current
+// (TLI4971, J24-23), AN_A1 NTC (J24-25), AN_A5 VBAT divider 11:1 (J24-26)
+#define VOLTAGE_ADC_CHANNEL     5           // AN_A5
+#define CURRENT_ADC_CHANNEL     0           // AN_A0
+#define TEMP_ADC_CHANNEL        1           // AN_A1, 10k NTC with 10k pull-up
+#define ADC_DMA_CHANNEL         2           // DataWire 0 channel 2
+#define ADC_DMA_IRQ             cpuss_interrupts_dw0_2_IRQn
+
+// BEMF with the CSG comparators and a real neutral, as on the ESC: slice k
+// compares AN_Bk (phase divider, + : J24-18 / J24-17 / J24-19) with AN_A(k+1)
+// (star of the three phases, - : J24-27 / J24-22 / J24-24, tied together on
+// the power stage). AN_B1 needs the R6 / R7 rework on the EVK
+#define PSC3_BEMF_CSG
+#define PHASE_A_COMP_CSG        1
+#define PHASE_A_COMP_POS        CSG_POS_AN_B    // AN_B1
+#define PHASE_A_COMP_NEG        CSG_NEG_AN_A    // AN_A2
+#define PHASE_B_COMP_CSG        2
+#define PHASE_B_COMP_POS        CSG_POS_AN_B    // AN_B2
+#define PHASE_B_COMP_NEG        CSG_NEG_AN_A    // AN_A3
+#define PHASE_C_COMP_CSG        3
+#define PHASE_C_COMP_POS        CSG_POS_AN_B    // AN_B3
+#define PHASE_C_COMP_NEG        CSG_NEG_AN_A    // AN_A4
+
+// status LED: yellow LED2 on P8.4, anode on VTARG_REF through R46
+#define LED_PORT                8
+#define LED_PIN                 4
 #define LED_ACTIVE_LOW
 #endif
 

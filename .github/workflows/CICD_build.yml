@@ -45,6 +45,13 @@ jobs:
           --suppress=missingIncludeSystem
           Mcu/psc3/Src Mcu/psc3/Startup Mcu/psc3/Boot
 
+      - name: PSC3 cppcheck (KIT_PSC3M5_EVK with a 6EDL7141 power stage)
+        run: >
+          cppcheck --enable=warning,performance --inline-suppr --error-exitcode=1 -q
+          -DEVK_PSC3 -DUSE_MAKE -DPSC3M5FDS2LGQ1 -IInc -IMcu/psc3/Inc
+          --suppress=missingIncludeSystem
+          Mcu/psc3/Src Mcu/psc3/Startup Mcu/psc3/Boot
+
   build:
     runs-on: ${{ matrix.os }}
 

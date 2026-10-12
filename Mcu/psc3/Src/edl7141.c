@@ -17,7 +17,10 @@
  * and 200 mA gate current, so the firmware does not run the motor on them.
  *
  * edl7141Service() runs in the 1 kHz part of the main loop: on nFAULT it
- * stores FAULT_ST and clears the non latched faults.
+ * stores FAULT_ST and clears the non latched faults. When the start failed
+ * it retries every EDL_RETRY_MS while the motor is stopped: on a modular
+ * board (KIT_PSC3M5_EVK on USB) the power stage, and so the 6EDL7141, often
+ * gets its supply after the MCU has started.
  *
  * This file has no register access, the hooks are in edl7141_hal.c, so the
  * host unit tests can run it.
@@ -33,6 +36,10 @@ volatile uint8_t edl7141_status = EDL_NOT_STARTED;
 volatile uint16_t edl7141_fault_st;
 volatile uint16_t edl7141_fault_count;
 volatile uint16_t edl7141_bad_reg;
+volatile uint16_t edl7141_retries;
+
+extern uint8_t running;
+static uint16_t retry_ms;
 
 typedef struct {
     uint8_t reg;
@@ -101,7 +108,17 @@ uint8_t edl7141Start(void)
 
 void edl7141Service(void)
 {
-    if (edl7141_status != EDL_OK || !edl7141FaultActive()) {
+    if (edl7141_status != EDL_OK) {
+        // the bridge stays off until a start succeeds; never while running
+        if (!running && ++retry_ms >= EDL_RETRY_MS) {
+            retry_ms = 0;
+            edl7141_retries++;
+            (void)edl7141Start();
+        }
+        return;
+    }
+    retry_ms = 0;
+    if (!edl7141FaultActive()) {
         return;
     }
     edl7141_fault_st = edl7141Read(EDL_FAULT_ST);
