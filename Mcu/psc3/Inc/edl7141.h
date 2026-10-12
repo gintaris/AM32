@@ -121,6 +121,11 @@
 #define EDL_ERR_GATE_SUPPLY     3U      // charge pumps did not come up after EN_DRV
 #define EDL_NOT_STARTED         0xFFU
 
+// retry of a failed start from edl7141Service() (1 kHz), motor stopped
+#ifndef EDL_RETRY_MS
+#define EDL_RETRY_MS            500U
+#endif
+
 // time for the charge pumps after EN_DRV, in 100 us polls
 #ifndef EDL_GATE_SUPPLY_POLLS
 #define EDL_GATE_SUPPLY_POLLS   50U
@@ -135,6 +140,7 @@ extern volatile uint8_t edl7141_status;
 extern volatile uint16_t edl7141_fault_st;     // FAULT_ST of the last fault
 extern volatile uint16_t edl7141_fault_count;
 extern volatile uint16_t edl7141_bad_reg;      // register that failed the read back
+extern volatile uint16_t edl7141_retries;      // start retries after a failure
 
 // hardware hooks, edl7141_hal.c on the PSC3 and stubs in the host tests
 void edl7141HwInit(void);                      // SPI, nSCS high, EN_DRV low, nBRAKE low, nFAULT input

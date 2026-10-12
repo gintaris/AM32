@@ -375,7 +375,7 @@ CSG comparators with a real neutral divider).
 ## Own ESC target (ESC60A_PSC3) and the 6EDL7141
 
 `ESC60A_PSC3` (`HARDWARE_GROUP_PSC3_ESC60` in `Inc/targets.h`) follows the
-schematic ESC_PSC3_60A Rev 0.2: PSC3M5FDS2ABQ1 (E-LQFP-48, same pin numbers as
+schematic ESC_PSC3_60A Rev 0.3: PSC3M5FDS2ABQ1 (E-LQFP-48, same pin numbers as
 VQFN-48), Infineon 6EDL7141 gate driver, 12x BSC014N06NS, TLI4971 current
 sensor. No board exists yet; the target builds and the driver logic is unit
 tested, nothing has run on hardware.
@@ -387,15 +387,20 @@ tested, nothing has run on hardware.
   AN_Bk (phase) against AN_A(k+1) (star of the phases)
 - 6EDL7141 over SPI (`Src/edl7141.c`, hooks in `Src/edl7141_hal.c`): SCB3 on
   P6.0 MOSI, P6.1 MISO, P6.2 SCLK, nSCS on P6.3 as a GPIO, EN_DRV P7.1,
-  nFAULT P7.2. 24 bit frames (command, 7 bit address, 16 bit data, MSB
+  nFAULT P7.2, nBRAKE from P2.2 through a Schottky diode. 24 bit frames (command, 7 bit address, 16 bit data, MSB
   first), sent as three bytes at 2 MHz, CPOL 0 / CPHA 1; a read returns the
   data in the same frame (datasheet Rev 1.04, section 7.1.2)
 - start-up (`edl7141Start()` from `enableCorePeripherals()`): the 6EDL7141
   already powers the MCU (DVDD), so it is in STANDBY. DEVICE_ID check, then
   the configuration with EN_DRV low and a read back of every register,
   clear the faults, EN_DRV high and wait for both charge pumps (SUPPLY_ST).
-  On any failure EN_DRV stays low and `edl7141_status` says why (1 no SPI
-  answer, 2 read back, 3 charge pumps)
+  On any failure EN_DRV stays low, nBRAKE low, and `edl7141_status` says why
+  (1 no SPI answer, 2 read back, 3 charge pumps)
+- nBRAKE: after the start-up the VSENSE pin (pull-down that selects DVDD
+  3.3 V) is the active low brake input (datasheet Rev 1.20, section 3.9.2).
+  The MCU drives it high through a Schottky diode just before EN_DRV;
+  BRAKE_CFG is High Z (`EDL_CFG_PWM` 0x0020), so when the MCU resets and the
+  pull-down takes over the bridge switches off instead of braking
 - configuration (`Inc/edl7141.h`, a target can override each value):
   6PWM, PVCC 12 V, dead time 120 ns instead of the 4.04 us reset value (the
   PSC3 PWM inserts DEAD_TIME), gate current 400 mA source / 500 mA sink
@@ -403,8 +408,49 @@ tested, nothing has run on hardware.
   (the current comes from the TLI4971)
 - faults: `edl7141Service()` in the 1 kHz ADC callback reads FAULT_ST on
   nFAULT into `edl7141_fault_st`, counts it and clears the non latched faults
+- retry: after a failed start `edl7141Service()` calls `edl7141Start()` again
+  every `EDL_RETRY_MS` (500 ms) while the motor is stopped
+  (`edl7141_retries` counts them), for boards where the gate driver gets its
+  supply after the MCU
 - open: TLI4971-A120T5 sensitivity (`MILLIVOLT_PER_AMP` 10 is a placeholder),
   OTP programming is not used
+
+## KIT_PSC3M5_EVK target (EVK_PSC3)
+
+`EVK_PSC3` (`HARDWARE_GROUP_PSC3_EVK`) runs the ESC60A design on the
+KIT_PSC3M5_EVK (PSC3M5FDS2AFQ1, E-LQFP-80) as the controller of a modular DEV
+ESC: a power stage with the 6EDL7141 plugs into the EVK headers J5 / J24, a
+power input board with the TLI4971 feeds it. Same die as the ESC, so the
+pin functions below come from `gpio_psc3_e_lqfp_80.h` (mtb-pdl-cat1 3.23.0)
+and the header pins from the EVK schematic 630-60703-01 Rev 5.0.
+
+| Function | MCU | EVK header |
+|---|---|---|
+| PWM A / B / C high, low | P4.0 / 4.1, P4.2 / 4.3, P4.4 / 4.5 (TCPWM 260-262) | J5-35 / 34, 33 / 32, 36 / 37 |
+| 6EDL7141 SDI, nSCS, SCLK, SDO | P7.1, P7.3, P7.0, P7.2 (SCB2, HSIOM 17) | J5-14, 16, 18, 20 |
+| EN_DRV, nFAULT, nBRAKE | P9.4, P9.5, P3.0 | J5-11, 9, 24 |
+| DShot input | P8.0 (TCPWM 516) | J5-19 (R113) |
+| Telemetry TX | P9.3 (SCB0) | J24-3 |
+| BEMF A / B / C (CSG +) | AN_B1 / B2 / B3 | J24-18 / 17 / 19 |
+| Neutral (CSG -) | AN_A2 / A3 / A4 | J24-27 / 22 / 24 |
+| Current, NTC, VBAT | AN_A0, AN_A1, AN_A5 | J24-23, 25, 26 |
+| LED | P8.4 (LED2, active low) | - |
+
+What is different from the ESC:
+- SPI on SCB2 (Arduino SPI pins): P6.2 / P6.3 are the KitProg3 UART
+- EVK rework: R6 off, R7 0R on, so AN_B1 reaches J24-18; by default it goes
+  to the HRPWM RC filter (10k, 1 uF)
+- AN_B4 is the EVK potentiometer, CAN is the on-board TLE9251V on P5.2 /
+  P5.3 (channel 1) with STB on P7.6 (no CAN driver yet)
+- VIN_EXP (J5-39, J24-2) is tied to the DC jack through R42 and clamped by
+  ESD12VD3B: never more than 12 V
+- the power stage is usually powered after the EVK (USB): the 6EDL7141 start
+  retry configures it once it answers
+
+Programming: KitProg3 on the USB-C connector with the Infineon OpenOCD and
+`Mcu/psc3/openocd_kitprog3.cfg` (as in "Programming and debugging", with this
+file instead of `openocd.cfg`), or a J-Link on the 10-pin SWD header J11 with
+`jlink_flash.jlink` (use `obj/AM32_EVK_PSC3_2.21.bin`).
 
 ## Continuous integration
 

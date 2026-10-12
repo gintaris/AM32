@@ -19,6 +19,7 @@ static int stuck_reg = -1;      // register that ignores writes
 static int no_answer;           // SDO stays low (SPI not connected)
 static int pumps_after_polls;   // SUPPLY_ST reads until the charge pumps are up
 static int supply_reads;
+uint8_t running;                // AM32 motor state, read by the start retry
 static uint32_t last_frames[64];
 
 static void deviceReset(void)
@@ -178,6 +179,29 @@ int main(void)
     before = frames;
     edl7141Service();
     CHECK(frames == before, "no service while not started");
+
+    // start retry: on a modular board the power stage often gets its supply
+    // after the MCU has started
+    for (unsigned i = 1; i < EDL_RETRY_MS - 1U; i++) {
+        edl7141Service();
+    }
+    CHECK(frames == before, "no retry before %u ms", EDL_RETRY_MS);
+    no_answer = 0;                          // the 6EDL7141 is powered now
+    unsigned retries = edl7141_retries;
+    edl7141Service();
+    CHECK(edl7141_retries == retries + 1U, "one retry after %u ms", EDL_RETRY_MS);
+    CHECK(edl7141_status == EDL_OK && enabled && !braking, "retry started the driver: %u", edl7141_status);
+
+    // never while the motor runs
+    no_answer = 1;
+    (void)edl7141Start();
+    running = 1;
+    before = frames;
+    for (unsigned i = 0; i < 3U * EDL_RETRY_MS; i++) {
+        edl7141Service();
+    }
+    CHECK(frames == before, "no retry while running");
+    running = 0;
 
     return report("test_edl7141");
 }
