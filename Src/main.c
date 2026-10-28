@@ -249,6 +249,10 @@ an settings option)
 #endif
 
 #include "version.h"
+#ifdef USE_B6_PROTOCOL
+#include "b6_am32.h"
+#include "b6_protocol.h"
+#endif
 
 void zcfoundroutine(void);
 
@@ -923,6 +927,9 @@ void PeriodElapsedCallback()
 {
     DISABLE_COM_TIMER_INT(); // disable interrupt
     commutate();
+#ifdef USE_B6_PROTOCOL
+    b6_commutations++;
+#endif
     commutation_interval = ((commutation_interval)+((lastzctime + thiszctime) >> 1))>>1;
   	if (!eepromBuffer.auto_advance) {
 	  advance = (commutation_interval * temp_advance) >> 6; // 60 divde 64 0.9375 degree increments
@@ -989,7 +996,11 @@ void startMotor()
 void setInput()
 {
     if (eepromBuffer.bi_direction) {
+#ifdef USE_B6_PROTOCOL
+        if (dshot == 0 && !b6ThrottleActive()) {   // B6 throttle comes in the DShot scale
+#else
         if (dshot == 0) {
+#endif
             if (eepromBuffer.rc_car_reverse) {
                 if (newinput > (1000 + (servo_dead_band << 1))) {
                     if (forward == eepromBuffer.dir_reversed) {
@@ -1355,6 +1366,9 @@ if (!stepper_sine && armed) {
 
 void tenKhzRoutine()
 { // 20khz as of 2.00 to be renamed
+#ifdef USE_B6_PROTOCOL
+    b6Am32Tick(); // link watchdog: cuts the throttle here when the PC goes silent
+#endif
     duty_cycle = duty_cycle_setpoint;
     tenkhzcounter++;
     ledcounter++;
@@ -1948,6 +1962,9 @@ int main(void)
   startup_max_duty_cycle = startup_max_duty_cycle + 400;
 #endif
 
+#ifdef USE_B6_PROTOCOL
+    b6Am32Init();
+#endif
     while (1) {
 e_com_time = ((commutation_intervals[0] + commutation_intervals[1] + commutation_intervals[2] + commutation_intervals[3] + commutation_intervals[4] + commutation_intervals[5]) + 4) >> 1; // COMMUTATION INTERVAL IS 0.5US INCREMENTS 
 
@@ -1982,6 +1999,9 @@ if(zero_crosses < 5){
 }
 
        RELOAD_WATCHDOG_COUNTER();
+#ifdef USE_B6_PROTOCOL
+        b6Am32Poll();
+#endif
 
         if (eepromBuffer.variable_pwm == 1) {      // uses range defined by pwm frequency setting
             tim1_arr = map(commutation_interval, 96, 200, TIMER1_MAX_ARR / 2,

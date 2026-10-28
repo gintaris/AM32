@@ -25,7 +25,9 @@
 #define SCB_MEM_WIDTH_BYTE      0UL
 #define SCB_DATA_WIDTH_8        7UL
 #define EDL_SPI_PCLK_GROUP      ((uint32_t)EDL_SPI_PCLK >> 8)
-#define EDL_SPI_PCLK_DIV        1U      // 16 bit divider 1 of the SCB PCLK group (0 is the telemetry UART)
+// the SCB PCLK group 4 has one 16 bit divider (the telemetry UART), two
+// 8 bit, three 16.5 and one 24.5 divider (psc3_config.h, GROUP_NR4)
+#define EDL_SPI_PCLK_DIV8       0U      // 8 bit divider 0 of the SCB PCLK group
 #define EDL_SPI_CLK_DIVIDE      9U      // 180 MHz / 9 = 20 MHz clk_scb
 #define EDL_SPI_OVS             10U     // 20 MHz / 10 = 2 MHz SCLK (SPI master: 4..16)
 #define EDL_SPI_TIMEOUT         2000U   // RX polls for 3 bytes, ~12 us at 2 MHz
@@ -46,8 +48,8 @@ void edl7141HwInit(void)
     gpioSetMode(EDL_FAULT_PORT, EDL_FAULT_PIN, GPIO_DM_HIGHZ, HSIOM_SEL_GPIO);
 
     enablePeriSlave(EDL_SPI_PERI_GROUP, EDL_SPI_PERI_SLAVE);
-    pclkDivider16(EDL_SPI_PCLK_GROUP, EDL_SPI_PCLK_DIV, EDL_SPI_CLK_DIVIDE);
-    connectPclk(EDL_SPI_PCLK, EDL_SPI_PCLK_DIV);
+    pclkDivider8(EDL_SPI_PCLK_GROUP, EDL_SPI_PCLK_DIV8, EDL_SPI_CLK_DIVIDE);
+    connectPclk8(EDL_SPI_PCLK, EDL_SPI_PCLK_DIV8);
 
     scb->CTRL = 0;  // disabled while configured
     scb->CTRL = ((EDL_SPI_OVS - 1UL) << SCB_CTRL_OVS_Pos)

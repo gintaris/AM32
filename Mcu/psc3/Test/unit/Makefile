@@ -10,7 +10,7 @@ CFLAGS := -std=c11 -Wall -Wextra -Werror -Wno-unused-parameter -O1 -DUSE_MAKE -D
 OUT := build
 
 TESTS := test_phaseouts test_pwm_math test_timer_math test_comparator test_comparator_adc test_dshot test_telemetry \
-	test_edl7141
+	test_edl7141 test_b6 test_b6_am32
 
 .PHONY: test clean
 test: $(addprefix $(OUT)/,$(addsuffix .exe,$(TESTS)))
@@ -50,3 +50,11 @@ $(OUT)/test_telemetry.exe: test_telemetry.c $(ROOT)/Src/kiss_telemetry.c stubs/*
 $(OUT)/test_edl7141.exe: test_edl7141.c $(ROOT)/Mcu/psc3/Src/edl7141.c $(ROOT)/Mcu/psc3/Inc/edl7141.h unit.h $(ROOT)/Inc/targets.h
 	@mkdir -p $(OUT)
 	"$(HOSTCC)" $(CFLAGS) -DUSE_6EDL7141 -o $@ test_edl7141.c $(ROOT)/Mcu/psc3/Src/edl7141.c
+
+$(OUT)/test_b6.exe: test_b6.c $(ROOT)/Src/b6_protocol.c $(ROOT)/Inc/b6_protocol.h unit.h $(ROOT)/Inc/targets.h
+	@mkdir -p $(OUT)
+	"$(HOSTCC)" $(CFLAGS) -DUSE_B6_PROTOCOL -o $@ test_b6.c $(ROOT)/Src/b6_protocol.c
+
+$(OUT)/test_b6_am32.exe: test_b6_am32.c $(ROOT)/Src/b6_am32.c $(ROOT)/Src/b6_protocol.c $(ROOT)/Inc/b6_protocol.h 		$(ROOT)/Inc/b6_am32.h stubs/*.h unit.h $(ROOT)/Inc/targets.h
+	@mkdir -p $(OUT)
+	"$(HOSTCC)" $(CFLAGS) -DUSE_B6_PROTOCOL -o $@ test_b6_am32.c $(ROOT)/Src/b6_am32.c $(ROOT)/Src/b6_protocol.c

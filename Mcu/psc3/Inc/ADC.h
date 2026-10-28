@@ -19,4 +19,6 @@ void ADC_DMA_Callback(void);
 void startADCConversion(void);
 int16_t getConvertedDegrees(uint16_t adcrawtemp);
 
+extern volatile uint16_t ADC_raw_board_id;    // BOARD_ID_ADC_CHANNEL targets
+
 #endif /* ADC_H_ */

@@ -296,7 +296,12 @@ phase states), plus the PWM, dead time, sound and timer clock arithmetic.
 `test_edl7141` runs the 6EDL7141 start-up and fault handling against a
 simulated device (frame layout from the datasheet example, configuration
 with EN_DRV low and read back, no SPI answer, read back mismatch, charge pumps
-not coming up, nFAULT service). On Windows the clang of the Visual Studio
+not coming up, nFAULT service). `test_b6` checks protocol B6 (CRC check
+value, frame layout, resync, every v0.1 request, watchdog timing and
+clamping, STOP latch, refusals while armed, telemetry layout and rate),
+`test_b6_am32` the same on the AM32 state (B6 and DShot never together,
+throttle scale, watchdog cut in the tick, over-current latch, telemetry
+units). On Windows the clang of the Visual Studio
 Build Tools works as `HOSTCC`.
 
 ## Bring-up images
@@ -421,9 +426,10 @@ tested, nothing has run on hardware.
 ## KIT_PSC3M5_EVK target (EVK_PSC3)
 
 `EVK_PSC3` (`HARDWARE_GROUP_PSC3_EVK`) runs the ESC60A design on the
-KIT_PSC3M5_EVK (PSC3M5FDS2AFQ1, E-LQFP-80) as the controller of a modular DEV
-ESC: a power stage with the 6EDL7141 plugs into the EVK headers J5 / J24, a
-power input board with the TLI4971 feeds it. Same die as the ESC, so the
+KIT_PSC3M5_EVK (PSC3M5FDS2AFQ1, E-LQFP-80) as the controller of the DEV ESC:
+the 8S 60 A board (Rev B: 6EDL7141, MOSFETs and the former power input board
+with the TLI4971 on one shield) plugs into the EVK headers J5 / J24 and is
+driven from the PC over the KitProg3 USB-UART (protocol B6). Same die as the ESC, so the
 pin functions below come from `gpio_psc3_e_lqfp_80.h` (mtb-pdl-cat1 3.23.0)
 and the header pins from the EVK schematic 630-60703-01 Rev 5.0.
 
@@ -437,6 +443,9 @@ and the header pins from the EVK schematic 630-60703-01 Rev 5.0.
 | BEMF A / B / C (CSG +) | AN_B1 / B2 / B3 | J24-18 / 17 / 19 |
 | Neutral (CSG -) | AN_A2 / A3 / A4 | J24-27 / 22 / 24 |
 | Current, NTC, VBAT | AN_A0, AN_A1, AN_A5 | J24-23, 25, 26 |
+| TLI4971 OCD1, OCD2 (over-current, active low) | P2.0, P2.1 (GPIO interrupt) | J24-14, 11 |
+| BOARD_ID | AN_B5 (SAR channel 13) | J24-28 |
+| Protocol B6 (PC) | P6.2 RX, P6.3 TX (SCB3, HSIOM 16) | KitProg3 USB-UART |
 | LED | P8.4 (LED2, active low) | - |
 
 What is different from the ESC:
@@ -449,8 +458,72 @@ What is different from the ESC:
   ESD12VD3B: never more than 12 V
 - the power stage is usually powered after the EVK (USB): the 6EDL7141 start
   retry configures it once it answers
-- VBAT: the power input board #1 (12S class) divides 20k / 1.2k = 17.67, so
-  `TARGET_VOLTAGE_DIVIDER` 177
+- Rev B board values: VBAT 20k / 1.2k = 17.67 (`TARGET_VOLTAGE_DIVIDER`
+  177, 8S 33.6 V gives 1.90 V), TLI4971 10 mV/A with VREF 1.65 V through
+  220R / 15 nF, NTC 10k with 10k pull-up, BOARD_ID 10k / 10k = board #1.
+  BOARD_ID_PWR (J24-30) is gone, the divider sits on the EVK 3.3 V (J5-2)
+
+### Over-current inputs (USE_OCD_INPUTS, `Src/ocd.c`)
+
+The TLI4971 OCD1 / OCD2 outputs (open drain, 4.7k pull-up and 1 nF on the
+board, internal pull-up as well) interrupt on the falling edge at priority
+0. The handler switches every phase off, masks the BEMF comparators and the
+commutation timer (and clears a pending one, which would drive the phases
+again), disarms, and switches the signal input off (`inputCaptureEnable()`,
+`Src/IO.c`), so DShot cannot arm while the over-current is latched. Without
+a signal the main loop resets the MCU after 2 s, which releases the latch;
+over protocol B6 a DISARM request releases it once the pins are high again.
+The OCD thresholds are the TLI4971 factory settings (not programmed). P2.0
+is also USER BTN2 of the EVK: pressing it tests the whole path. Still open: a
+hardware kill of the PWM counters through the trigger multiplexer, without
+the interrupt latency (about 0.5 us).
+
+### Protocol B6 (USE_B6_PROTOCOL)
+
+Binary packets to the PC programme (specification `protocol-b6.md`, v0.1)
+on the KitProg3 USB-UART at 921600 baud 8N1 (180 MHz / 15 / 13 = 923077,
++0.16 %):
+
+- `Src/b6_protocol.c` (shared sources, top level): framing (A5 5A, LE16 length, sequence, type, payload,
+  CRC-16/CCITT-FALSE LE), resync after a bad length or CRC, HELLO, PING,
+  TELEM_CFG, ARM, DISARM, THROTTLE, STOP, BEEP, EVENT, ACK / NACK and the
+  telemetry record layout 1 (44 bytes). No AM32 state: host tested
+- `Src/b6_am32.c` (top level): hooks on main.c (arming, throttle through `setInput()`,
+  telemetry units)
+- `Src/b6_hw.c`: SCB3 UART with interrupt driven ring buffers
+  (512 bytes in, 2 kB out), die ID, BOARD_ID, reset cause, fault flags
+
+Safety rules:
+- ARM makes B6 the only throttle source: refused (NACK) while DShot is armed
+  (8), its input is not zero (5), or a fault is active (6: 6EDL7141 not
+  running or nFAULT, OCD latched, low voltage cut-off). The DShot / servo
+  capture is off until DISARM
+- link watchdog: no valid THROTTLE within its time (default 200 ms, 20 to
+  1000 ms per THROTTLE) while armed: the control loop interrupt zeroes the
+  input at once, the main loop then sends EVENT 14 and disarms (phases off).
+  While B6 is armed the watchdog replaces the 0.5 s signal timeout of
+  main.c; every valid frame also clears `signaltimeout`, so a PC without
+  DShot must send something (PING) at least every second, or the main loop
+  resets the MCU after 2 s as without a signal
+- STOP holds the throttle at 0 until DISARM; PARAM_SAVE and DRV_REG_WRITE are
+  refused while armed (both not implemented yet, NACK 1 when disarmed)
+- the B6 throttle is applied every millisecond like a 1 kHz DShot stream, in
+  the DShot scale (bidirectional as in DroneCAN)
+
+Events: 15 reset (data `SRSS->RES_CAUSE`), 1 / 2 armed / disarmed, 4
+stopped, 14 link watchdog (data: ms), 11 current limit (data: bit 0 OCD1,
+bit 1 OCD2). Telemetry: MCU temperature is not measured (`INT16_MIN`), the
+zero-cross count is the number of commutations. HELLO: firmware "AM32 2.21",
+target `FILE_NAME`, build hash from git (`psc3makefile.mk`), MCU ID from the
+SFLASH die ID, power stage / input ID from BOARD_ID (1 for 10k / 10k).
+Not yet: STATUS, PARAM_*, DRV_REG_*, TRACE_GET (NACK 1).
+
+### SCB clock dividers
+
+PCLK group 4 (the SCBs) has one 16 bit divider, two 8 bit, three 16.5 and
+one 24.5 divider (`psc3_config.h`). The telemetry UART uses the 16 bit one,
+the 6EDL7141 SPI 8 bit divider 0 (it used to select a 16 bit divider 1 that
+does not exist, so the SPI had no clock), protocol B6 8 bit divider 1.
 
 Programming: KitProg3 on the USB-C connector with the Infineon OpenOCD and
 `Mcu/psc3/openocd_kitprog3.cfg` (as in "Programming and debugging", with this

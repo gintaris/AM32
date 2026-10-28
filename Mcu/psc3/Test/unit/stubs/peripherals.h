@@ -26,4 +26,13 @@ extern TCPWM_GRP_CNT_Type fake_pwm_cnt[8];
 #define TCPWM_LINE_PWM      2UL
 #define TCPWM_LINE_PWM_INV  3UL
 
+// used by Src/b6_am32.c
+extern uint32_t fake_com_timer_int_mask;
+#define tcpwm_0_interrupts_513_IRQn 141     // COM_TIMER_IRQ of targets.h
+#define pass_interrupt_sar_entry_done_0_IRQn 139   // COMPARATOR_IRQ (BEMF_ADC)
+#define DISABLE_COM_TIMER_INT()     (fake_com_timer_int_mask = 0)
+void NVIC_ClearPendingIRQ(int irq);
+void __disable_irq(void);
+void __enable_irq(void);
+
 #endif

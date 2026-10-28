@@ -193,6 +193,28 @@ void sendDshotDma(void)
     cnt->TR_CMD = TCPWM_CMD_START;
 }
 
+// signal input off while another source owns the throttle (protocol B6) or
+// an over-current is latched: no DMA, no interrupt, no processDshot().
+// Back on, the capture starts again from an empty buffer
+void inputCaptureEnable(uint8_t on)
+{
+    if (on) {
+        stopDma();
+        NVIC_ClearPendingIRQ(IC_DMA_IRQ_NAME);
+        NVIC_ClearPendingIRQ(DSHOT_SW_IRQ);
+        NVIC_EnableIRQ(IC_DMA_IRQ_NAME);
+        receiveDshotDma();
+    } else {
+        NVIC_DisableIRQ(IC_DMA_IRQ_NAME);
+        stopDma();
+        IC_TIMER_REGISTER->CTRL = 0;
+        out_put = 0;
+        changeToInput();
+        NVIC_ClearPendingIRQ(IC_DMA_IRQ_NAME);
+        NVIC_ClearPendingIRQ(DSHOT_SW_IRQ);
+    }
+}
+
 uint8_t getInputPinState(void)
 {
     return (uint8_t)gpioRead(INPUT_PIN_PORT, INPUT_PIN);

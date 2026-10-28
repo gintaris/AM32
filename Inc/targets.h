@@ -3522,7 +3522,7 @@
 #define FIRMWARE_NAME           "IFX_EVK_PSC3"
 #define DEAD_TIME               60          // TCPWM clock cycles at 180 MHz, 333 ns
 #define HARDWARE_GROUP_PSC3_EVK
-// power input board #1 (12S class): VBAT divider 20k / 1.2k = 17.67, 50.4 V -> 2.85 V
+// DEV ESC 8S Rev B (power input merged in): VBAT divider 20k / 1.2k = 17.67, 8S 33.6 V -> 1.90 V
 #define TARGET_VOLTAGE_DIVIDER  177
 #define CURRENT_OFFSET          1650        // millivolts, TLI4971 VREF 1.65 V (semi-differential default)
 #define MILLIVOLT_PER_AMP       10          // TLI4971-A120T5 range S1 (+-120 A), datasheet Rev 1.20 table 4
@@ -5041,8 +5041,9 @@
 #define SERIAL_TELEMETRY_PIN    3
 #define SERIAL_TELEMETRY_HSIOM_SEL 14       // P9_3_SCB0_UART_TX
 
-// HPPASS SAR inputs from the power input / power stage boards: AN_A0 current
-// (TLI4971, J24-23), AN_A1 NTC (J24-25), AN_A5 VBAT divider 11:1 (J24-26)
+// HPPASS SAR inputs from the DEV ESC 8S Rev B board: AN_A0 current (TLI4971
+// AOUT through 220R / 15 nF, J24-23), AN_A1 NTC 10k with 10k pull-up (J24-25),
+// AN_A5 VBAT divider 20k / 1.2k (J24-26, TARGET_VOLTAGE_DIVIDER)
 #define VOLTAGE_ADC_CHANNEL     5           // AN_A5
 #define CURRENT_ADC_CHANNEL     0           // AN_A0
 #define TEMP_ADC_CHANNEL        1           // AN_A1, 10k NTC with 10k pull-up
@@ -5068,6 +5069,35 @@
 #define LED_PORT                8
 #define LED_PIN                 4
 #define LED_ACTIVE_LOW
+
+// protocol B6 to the PC (Src/b6_protocol.c, Mcu/psc3/Src/b6_hw.c) on the
+// KitProg3 USB-UART: SCB3, P6.2 RX <- KitProg3 TX, P6.3 TX -> KitProg3 RX
+#define USE_B6_PROTOCOL
+#define B6_UART_SCB             SCB3
+#define B6_UART_PCLK            PCLK_SCB3_CLOCK_SCB_EN
+#define B6_UART_PERI_GROUP      CY_MMIO_SCB3_GROUP_NR
+#define B6_UART_PERI_SLAVE      CY_MMIO_SCB3_SLAVE_NR
+#define B6_UART_IRQ             scb_3_interrupt_IRQn
+#define B6_UART_IRQ_HANDLER     scb_3_interrupt_IRQHandler
+#define B6_UART_PORT            6
+#define B6_UART_RX_PIN          2
+#define B6_UART_TX_PIN          3
+#define B6_UART_HSIOM_SEL       16          // P6_2_SCB3_UART_RX, P6_3_SCB3_UART_TX
+#define B6_UART_BAUD            921600UL
+
+// TLI4971 fast over-current outputs (open drain, active low, 4.7k pull-up
+// and 1 nF on the power stage): OCD1 P2.0 (J24-14, also USER BTN2), OCD2
+// P2.1 (J24-11). Mcu/psc3/Src/ocd.c switches the gates off on a falling edge
+#define USE_OCD_INPUTS
+#define OCD_PORT                2
+#define OCD1_PIN                0
+#define OCD2_PIN                1
+#define OCD_IRQ                 ioss_interrupts_gpio_2_IRQn
+#define OCD_IRQ_HANDLER         ioss_interrupts_gpio_2_IRQHandler
+
+// BOARD_ID divider of the power stage (10k / 10k = #1) on AN_B5 (J24-28),
+// SAR channel 13 = muxed sampler 12, input 1 (AN_B4..AN_B7 = 12..15)
+#define BOARD_ID_ADC_CHANNEL    13
 #endif
 
 /************************************ G031 Hardware Groups

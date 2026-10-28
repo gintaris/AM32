@@ -14,6 +14,7 @@ void changeToOutput(void);
 void changeToInput(void);
 void receiveDshotDma(void);
 void sendDshotDma(void);
+void inputCaptureEnable(uint8_t on);
 uint8_t getInputPinState(void);
 void setInputPolarityRising(void);
 void setInputPullDown(void);

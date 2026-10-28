@@ -12,6 +12,7 @@
 #include "IO.h"
 #include "comparator.h"
 #include "hppass.h"
+#include "ocd.h"
 #include "serial_telemetry.h"
 #include "targets.h"
 
@@ -61,10 +62,10 @@ void setPclkDivider(uint32_t div16, uint32_t divide_by)
     pclkDivider16(PCLK_TCPWM_GROUP, div16, divide_by);
 }
 
-// set an 8 bit divider of the TCPWM PCLK group (the CSG clock)
-static void setPclkDivider8(uint32_t div8, uint32_t divide_by)
+// set an 8 bit divider of a PCLK group to divide by divide_by
+void pclkDivider8(uint32_t group, uint32_t div8, uint32_t divide_by)
 {
-    PERI_PCLK_GR_Type* gr = &PERI_PCLK->GR[PCLK_TCPWM_GROUP];
+    PERI_PCLK_GR_Type* gr = &PERI_PCLK->GR[group];
     const uint32_t sel = (PCLK_DIV_TYPE_8 << PERI_PCLK_GR_DIV_CMD_TYPE_SEL_Pos) | div8;
 
     gr->DIV_CMD = PERI_PCLK_GR_DIV_CMD_DISABLE_Msk | sel;
@@ -85,6 +86,11 @@ static void connectPclkType(en_clk_dst_t dst, uint32_t type, uint32_t div)
 void connectPclk(en_clk_dst_t dst, uint32_t div16)
 {
     connectPclkType(dst, PCLK_DIV_TYPE_16, div16);
+}
+
+void connectPclk8(en_clk_dst_t dst, uint32_t div8)
+{
+    connectPclkType(dst, PCLK_DIV_TYPE_8, div8);
 }
 
 /*
@@ -121,8 +127,8 @@ void SystemClock_Config(void)
     connectPclk(PCLK_TCPWM0_CLOCK_COUNTER_EN515, PCLK_DIV_1MHZ);   // TEN_KHZ_TIMER
 
     // HPPASS CSG clock, 10..120 MHz
-    setPclkDivider8(PCLK_DIV8_CSG, PCLK_DIVIDE_CSG);
-    connectPclkType(PCLK_PASS_CLOCK_CSG, PCLK_DIV_TYPE_8, PCLK_DIV8_CSG);
+    pclkDivider8(PCLK_TCPWM_GROUP, PCLK_DIV8_CSG, PCLK_DIVIDE_CSG);
+    connectPclk8(PCLK_PASS_CLOCK_CSG, PCLK_DIV8_CSG);
 }
 
 void MX_GPIO_Init(void)
@@ -426,6 +432,10 @@ void enableCorePeripherals(void)
     gpioWrite(IPM_ENABLE_PORT, IPM_ENABLE_PIN, IPM_ENABLE_ACTIVE);
 #endif
     startTimers();
+#ifdef USE_OCD_INPUTS
+    // gates off: from now on an over-current output switches them off at once
+    ocdInit();
+#endif
 #ifdef USE_6EDL7141
     // gate outputs off and delayMicros() running: configure the 6EDL7141
     // over SPI, then EN_DRV (result in edl7141_status)

@@ -26,6 +26,9 @@
 extern uint16_t ADC_raw_temp;
 extern uint16_t ADC_raw_volts;
 extern uint16_t ADC_raw_current;
+#ifdef BOARD_ID_ADC_CHANNEL
+volatile uint16_t ADC_raw_board_id;
+#endif
 
 #define ENTRY_BEMF          0U
 #define ENTRY_SLOW          1U
@@ -60,6 +63,11 @@ void ADC_Init(void)
         | samplerBits(TEMP_ADC_CHANNEL);
     uint32_t samp_en = sampEnBits(VOLTAGE_ADC_CHANNEL) | sampEnBits(CURRENT_ADC_CHANNEL)
         | sampEnBits(TEMP_ADC_CHANNEL);
+#ifdef BOARD_ID_ADC_CHANNEL
+    // power stage identification, the only muxed channel of this entry
+    slow |= samplerBits(BOARD_ID_ADC_CHANNEL);
+    samp_en |= sampEnBits(BOARD_ID_ADC_CHANNEL);
+#endif
 
     HPPASS->SAR.CFG.CTRL = HPPASS_SAR_CFG_CTRL_STARTUP_CAL_OFFSET_EN_Msk
         | HPPASS_SAR_CFG_CTRL_STARTUP_CAL_GAIN_EN_Msk;     // VDDA reference
@@ -125,6 +133,9 @@ void ADC_DMA_Callback(void)
     ADC_raw_volts = (uint16_t)HPPASS->SAR.CFG.CHAN_RESULT[VOLTAGE_ADC_CHANNEL];
     ADC_raw_current = (uint16_t)HPPASS->SAR.CFG.CHAN_RESULT[CURRENT_ADC_CHANNEL];
     ADC_raw_temp = (uint16_t)HPPASS->SAR.CFG.CHAN_RESULT[TEMP_ADC_CHANNEL];
+#ifdef BOARD_ID_ADC_CHANNEL
+    ADC_raw_board_id = (uint16_t)HPPASS->SAR.CFG.CHAN_RESULT[BOARD_ID_ADC_CHANNEL];
+#endif
     setCompReference(compReferenceFromBus(ADC_raw_volts));
 #ifdef USE_6EDL7141
     edl7141Service();   // 1 kHz: gate driver faults (nFAULT)

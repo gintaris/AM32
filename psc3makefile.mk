@@ -25,6 +25,10 @@ CFLAGS_$(MCU) := \
 CFLAGS_$(MCU) += \
 	-D$(PART)
 
+# build hash in the protocol B6 HELLO reply (0 outside a git checkout)
+PSC3_GIT_HASH := $(shell git rev-parse --short=8 HEAD 2>$(NUL) || echo 0)
+CFLAGS_$(MCU) += -DB6_BUILD_HASH=0x$(if $(PSC3_GIT_HASH),$(PSC3_GIT_HASH),0)UL
+
 SRC_$(MCU) := $(foreach dir,$(SRC_DIR_$(MCU)),$(wildcard $(dir)/*.[cs]))
 
 # PSC3 bring-up images, not AM32 firmware targets:
