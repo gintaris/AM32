@@ -4,9 +4,9 @@
  * PSC3 side of protocol B6 (targets with USE_B6_PROTOCOL, b6_am32.h):
  *
  * UART on an SCB (EVK_PSC3: SCB3, P6.2 RX / P6.3 TX, the KitProg3 USB-UART),
- * 8N1 at B6_UART_BAUD. The clock comes from an 8 bit divider of the SCB
- * PCLK group: 921600 baud = 180 MHz / 15 / 13 oversampling (923077 baud,
- * +0.16 %). Both directions go through ring buffers and the SCB interrupt
+ * 8N1 at B6_UART_BAUD (two stop bits when sending). The clock comes from an 8 bit divider of the SCB
+ * PCLK group (PSC3_SCB_CLOCK_HZ, 48 MHz on the EVK): 921600 baud = 48 MHz /
+ * 4 / 13 oversampling (923077 baud, +0.16 %). Both directions go through ring buffers and the SCB interrupt
  * (priority 3, the lowest): the receive FIFO is emptied on NOT_EMPTY, the
  * transmit FIFO refilled while it holds less than TX_TRIGGER bytes. The main
  * loop takes received bytes and queues whole frames, so blocking calls in the
@@ -33,10 +33,13 @@
 #define SCB_MEM_WIDTH_BYTE  0UL
 #define SCB_DATA_WIDTH_8    7UL
 #define UART_STOP_BITS_1    1UL     // half bit periods - 1
+// two stop bits when sending: with one, the KitProg3 USB-UART of the EVK
+// lost bytes of back to back frames at 921600 baud (measured 2026-11-15)
+#define UART_STOP_BITS_2    3UL
 #define B6_UART_OVS         13UL
 #define B6_PCLK_GROUP       ((uint32_t)B6_UART_PCLK >> 8)
 #define B6_PCLK_DIV8        1U      // 8 bit divider 1 of the SCB group (0 is the 6EDL7141 SPI)
-#define B6_PCLK_DIVIDE      ((CPU_FREQUENCY_MHZ * 1000000UL + B6_UART_BAUD * B6_UART_OVS / 2UL) / (B6_UART_BAUD * B6_UART_OVS))
+#define B6_PCLK_DIVIDE      ((PSC3_SCB_CLOCK_HZ + B6_UART_BAUD * B6_UART_OVS / 2UL) / (B6_UART_BAUD * B6_UART_OVS))
 #define SCB_FIFO_BYTES      128U
 #define TX_TRIGGER          64UL    // refill below this FIFO level
 
@@ -71,7 +74,7 @@ void b6HwInit(void)
         | (SCB_MEM_WIDTH_BYTE << SCB_CTRL_MEM_WIDTH_Pos)
         | (SCB_MODE_UART << SCB_CTRL_MODE_Pos);
     scb->UART_CTRL = 0;     // standard UART
-    scb->UART_TX_CTRL = UART_STOP_BITS_1 << SCB_UART_TX_CTRL_STOP_BITS_Pos;
+    scb->UART_TX_CTRL = UART_STOP_BITS_2 << SCB_UART_TX_CTRL_STOP_BITS_Pos;
     scb->UART_RX_CTRL = UART_STOP_BITS_1 << SCB_UART_RX_CTRL_STOP_BITS_Pos;
     scb->TX_CTRL = SCB_DATA_WIDTH_8 << SCB_TX_CTRL_DATA_WIDTH_Pos;     // LSB first
     scb->RX_CTRL = (SCB_DATA_WIDTH_8 << SCB_RX_CTRL_DATA_WIDTH_Pos) | SCB_RX_CTRL_MEDIAN_Msk;

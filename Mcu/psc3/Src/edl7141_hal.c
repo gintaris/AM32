@@ -28,8 +28,10 @@
 // the SCB PCLK group 4 has one 16 bit divider (the telemetry UART), two
 // 8 bit, three 16.5 and one 24.5 divider (psc3_config.h, GROUP_NR4)
 #define EDL_SPI_PCLK_DIV8       0U      // 8 bit divider 0 of the SCB PCLK group
-#define EDL_SPI_CLK_DIVIDE      9U      // 180 MHz / 9 = 20 MHz clk_scb
-#define EDL_SPI_OVS             10U     // 20 MHz / 10 = 2 MHz SCLK (SPI master: 4..16)
+#define EDL_SPI_HZ              2000000UL
+#define EDL_SPI_OVS             8U      // SCB clocks per SCLK period (SPI master: 4..16)
+// 2 MHz SCLK: 180 MHz / 11 / 8 (2.05 MHz), on the EVK 48 MHz / 3 / 8
+#define EDL_SPI_CLK_DIVIDE      ((PSC3_SCB_CLOCK_HZ + EDL_SPI_HZ * EDL_SPI_OVS / 2UL) / (EDL_SPI_HZ * EDL_SPI_OVS))
 #define EDL_SPI_TIMEOUT         2000U   // RX polls for 3 bytes, ~12 us at 2 MHz
 
 void edl7141HwInit(void)

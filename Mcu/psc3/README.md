@@ -490,8 +490,8 @@ the interrupt latency (about 0.5 us).
 ### Protocol B6 (USE_B6_PROTOCOL)
 
 Binary packets to the PC programme (specification `protocol-b6.md`, v0.1)
-on the KitProg3 USB-UART at 921600 baud 8N1 (180 MHz / 15 / 13 = 923077,
-+0.16 %):
+on the KitProg3 USB-UART at 921600 baud 8N1 (48 MHz / 4 / 13 = 923077,
++0.16 %; the firmware sends two stop bits, with one the KitProg3 lost bytes):
 
 - `Src/b6_protocol.c` (shared sources, top level): framing (A5 5A, LE16 length, sequence, type, payload,
   CRC-16/CCITT-FALSE LE), resync after a bad length or CRC, HELLO, PING,
@@ -528,6 +528,14 @@ SFLASH die ID, power stage / input ID from BOARD_ID (1 for 10k / 10k).
 Not yet: STATUS, PARAM_*, DRV_REG_*, TRACE_GET (NACK 1).
 
 ### SCB clock dividers
+
+On the EVK the SCB PCLK group measured 48 MHz, not the 180 MHz of the
+counters: protocol B6 first came out at 245760 baud (921600 * 48 / 180)
+while the timers kept real time. `PSC3_SCB_CLOCK_HZ` (48 MHz in the EVK
+hardware group, default the counter clock) now feeds the UART and SPI
+divider arithmetic: B6 48 MHz / 4 / 13, 6EDL7141 SPI 48 MHz / 3 / 8 = 2 MHz,
+telemetry 48 MHz / 32 / 13. Not checked on the 2GO kit and the ESC target,
+which still assume 180 MHz.
 
 PCLK group 4 (the SCBs) has one 16 bit divider, two 8 bit, three 16.5 and
 one 24.5 divider (`psc3_config.h`). The telemetry UART uses the 16 bit one,

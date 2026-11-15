@@ -4974,6 +4974,10 @@
 
 #define MCU_PSC3
 
+// the SCB PCLK group (protocol B6, 6EDL7141 SPI, telemetry) runs at 48 MHz on
+// this kit, not at the 180 MHz of the counters (measured 2026-11-15)
+#define PSC3_SCB_CLOCK_HZ       48000000UL
+
 // Gate inputs INHx / INLx of the 6EDL7141: high and low side of each phase
 // on the line / line_compl pair of one TCPWM counter, so per phase duty
 // cycles and the sine start work (no NO_SINE_START)

@@ -30,7 +30,7 @@ uint8_t get_crc8(uint8_t* buf, uint8_t len)
 int main(void)
 {
     // UART: 180 MHz / divider / 13 oversampling within 1 % of 115200
-    const double baud = (double)PSC3_COUNTER_CLOCK_HZ / PCLK_DIVIDE_UART / TELEM_UART_OVS;
+    const double baud = (double)PSC3_SCB_CLOCK_HZ / PCLK_DIVIDE_UART / TELEM_UART_OVS;
     CHECK(baud > TELEM_BAUD * 0.99 && baud < TELEM_BAUD * 1.01, "baud %.0f", baud);
     CHECK(PCLK_DIVIDE_UART >= 1 && PCLK_DIVIDE_UART <= 65536, "16 bit divider");
     CHECK(TELEM_UART_OVS >= 8 && TELEM_UART_OVS <= 16, "SCB oversampling range");
