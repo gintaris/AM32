@@ -3520,7 +3520,11 @@
 #ifdef EVK_PSC3
 #define FILE_NAME               "EVK_PSC3"
 #define FIRMWARE_NAME           "IFX_EVK_PSC3"
-#define DEAD_TIME               60          // TCPWM clock cycles at 180 MHz, 333 ns
+// 667 ns for the first runs of the DEV ESC Rev B: two paralleled BSC014N06NS
+// per switch at 400 / 500 mA gate current leave an estimated 100 ns of real
+// gap with 333 ns, and that could not be measured yet. Back to 60 (333 ns)
+// once the gates have been seen on a fast oscilloscope
+#define DEAD_TIME               120         // TCPWM clock cycles at 180 MHz, 667 ns
 #define HARDWARE_GROUP_PSC3_EVK
 // DEV ESC 8S Rev B (power input merged in): VBAT divider 20k / 1.2k = 17.67, 8S 33.6 V -> 1.90 V
 #define TARGET_VOLTAGE_DIVIDER  177
