@@ -171,6 +171,49 @@ int main(void)
     CHECK(edl7141_fault_count == (uint16_t)(count + 1), "fault counted");
     CHECK(fault_pin == 0 && regs[EDL_FAULT_ST] == 0, "fault cleared");
 
+    // battery unplugged while the MCU stays on USB: nFAULT reads low (pull-up
+    // to DVDD) and nothing answers. nBRAKE must go low at once, as the pin is
+    // VSENSE when the supply returns
+    deviceReset();
+    CHECK(edl7141Start() == EDL_OK, "start before the supply loss");
+    no_answer = 1;
+    fault_pin = 1;
+    edl7141Service();
+    CHECK(edl7141_status == EDL_ERR_LOST, "supply loss seen: %u", edl7141_status);
+    CHECK(braking && !enabled, "supply loss: EN_DRV and nBRAKE low");
+    deviceReset();                          // supply back: registers at their reset values
+    for (unsigned i = 0; i < EDL_RETRY_MS; i++) {
+        edl7141Service();
+    }
+    CHECK(edl7141_status == EDL_OK && enabled && !braking, "driver started again: %u", edl7141_status);
+    CHECK(regs[EDL_DT_CFG] == EDL_CFG_DT, "configured again after the supply loss");
+
+    // supply dip too short for nFAULT: the registers are back at their reset
+    // values, the periodic check finds it and the retry configures them again
+    regs[EDL_SUPPLY_CFG] = 0x6000;
+    regs[EDL_PWM_CFG] = 0x0000;
+    regs[EDL_IDRIVE_CFG] = 0xBBBB;
+    regs[EDL_DT_CFG] = 0x3131;
+    regs[EDL_CSAMP_CFG] = 0x0028;
+    unsigned ms = 0;
+    while (edl7141_status == EDL_OK && ms < 10U * EDL_CHECK_MS) {
+        edl7141Service();
+        ms++;
+    }
+    CHECK(edl7141_status == EDL_ERR_LOST, "lost configuration seen after %u ms", ms);
+    CHECK(ms <= 5U * EDL_CHECK_MS, "within one round of the checks: %u ms", ms);
+    CHECK(braking && !enabled, "lost configuration: bridge off");
+    for (unsigned i = 0; i < EDL_RETRY_MS; i++) {
+        edl7141Service();
+    }
+    CHECK(edl7141_status == EDL_OK && regs[EDL_DT_CFG] == EDL_CFG_DT, "configured again: %u", edl7141_status);
+
+    // a healthy driver passes the periodic check
+    for (unsigned i = 0; i < 20U * EDL_CHECK_MS; i++) {
+        edl7141Service();
+    }
+    CHECK(edl7141_status == EDL_OK && enabled, "no false alarm from the periodic check");
+
     // no service after a failed start
     deviceReset();
     no_answer = 1;

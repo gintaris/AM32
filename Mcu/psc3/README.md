@@ -458,9 +458,18 @@ What is different from the ESC:
   ESD12VD3B: never more than 12 V
 - the power stage is usually powered after the EVK (USB): the 6EDL7141 start
   retry configures it once it answers
+- the battery can also be unplugged while the EVK stays on USB. nFAULT then
+  reads low and DEVICE_ID does not answer: `edl7141Service()` sets
+  `edl7141_status` 4 (`EDL_ERR_LOST`), EN_DRV and nBRAKE low, and the retry
+  starts the driver again. nBRAKE has to be low when the supply returns: the
+  pin is VSENSE at power-up and a high level selects DVDD 5 V. As a second
+  barrier `EDL_CFG_SUPPLY` is 0x6800 on this target (DVDD 3.3 V set over SPI,
+  DVDD_SETPT b10). Every `EDL_CHECK_MS` (100 ms) the service also reads
+  DEVICE_ID and one configuration register, so a supply dip that reset the
+  registers is found too (two reads before it gives up)
 - Rev B board values: VBAT 20k / 1.2k = 17.67 (`TARGET_VOLTAGE_DIVIDER`
   177, 8S 33.6 V gives 1.90 V), TLI4971 10 mV/A with VREF 1.65 V through
-  220R / 15 nF, NTC 10k with 10k pull-up, BOARD_ID 10k / 10k = board #1.
+  1k / 6.8 nF, NTC 10k with 10k pull-up, BOARD_ID 10k / 10k = board #1.
   BOARD_ID_PWR (J24-30) is gone, the divider sits on the EVK 3.3 V (J5-2)
 
 ### Over-current inputs (USE_OCD_INPUTS, `Src/ocd.c`)

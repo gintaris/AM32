@@ -16,6 +16,8 @@
 
 #include <stdint.h>
 
+#include "targets.h"     // a target can override the EDL_CFG_* values below
+
 // registers (table 19)
 #define EDL_FAULT_ST            0x00U   // fault and warning status
 #define EDL_TEMP_ST             0x01U   // temperature status
@@ -85,7 +87,8 @@
  * override any value before including this file.
  */
 // SUPPLY_CFG: reset value 6000H, PVCC (gate drive) 12 V in bits 1:0 (b00),
-// DVDD from the VSENSE resistor, buck 500 kHz
+// DVDD from the VSENSE resistor (DVDD_SETPT 11:10 = b0x; b10 sets 3.3 V over
+// SPI whatever the pin read at power-up), buck 500 kHz
 #ifndef EDL_CFG_SUPPLY
 #define EDL_CFG_SUPPLY          0x6000U
 #endif
@@ -119,11 +122,18 @@
 #define EDL_ERR_ID              1U      // no answer or wrong DEVICE_ID: check SPI
 #define EDL_ERR_VERIFY          2U      // a register read back differently
 #define EDL_ERR_GATE_SUPPLY     3U      // charge pumps did not come up after EN_DRV
+#define EDL_ERR_LOST            4U      // ran, then stopped answering or lost its configuration
 #define EDL_NOT_STARTED         0xFFU
 
 // retry of a failed start from edl7141Service() (1 kHz), motor stopped
 #ifndef EDL_RETRY_MS
 #define EDL_RETRY_MS            500U
+#endif
+
+// check of a running 6EDL7141 from edl7141Service(): DEVICE_ID and one
+// configuration register every EDL_CHECK_MS
+#ifndef EDL_CHECK_MS
+#define EDL_CHECK_MS            100U
 #endif
 
 // time for the charge pumps after EN_DRV, in 100 us polls

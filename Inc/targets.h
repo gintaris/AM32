@@ -5007,6 +5007,10 @@
 // as a GPIO (J5-16); EN_DRV P9.4 (J5-11); nFAULT P9.5 (J5-9); nBRAKE from
 // P3.0 (J5-24) through the Schottky diode on the power stage
 #define USE_6EDL7141
+// SUPPLY_CFG: DVDD 3.3 V set over SPI (DVDD_SETPT b10), PVCC 12 V. The EVK
+// runs from USB, so the 6EDL7141 can power up while P3.0 holds VSENSE /
+// nBRAKE high, and it would then read the pin as 5 V
+#define EDL_CFG_SUPPLY          0x6800U
 #define EDL_SPI_SCB             SCB2
 #define EDL_SPI_PCLK            PCLK_SCB2_CLOCK_SCB_EN
 #define EDL_SPI_PERI_GROUP      CY_MMIO_SCB2_GROUP_NR
@@ -5042,7 +5046,7 @@
 #define SERIAL_TELEMETRY_HSIOM_SEL 14       // P9_3_SCB0_UART_TX
 
 // HPPASS SAR inputs from the DEV ESC 8S Rev B board: AN_A0 current (TLI4971
-// AOUT through 220R / 15 nF, J24-23), AN_A1 NTC 10k with 10k pull-up (J24-25),
+// AOUT through 1k / 6.8 nF, J24-23), AN_A1 NTC 10k with 10k pull-up (J24-25),
 // AN_A5 VBAT divider 20k / 1.2k (J24-26, TARGET_VOLTAGE_DIVIDER)
 #define VOLTAGE_ADC_CHANNEL     5           // AN_A5
 #define CURRENT_ADC_CHANNEL     0           // AN_A0

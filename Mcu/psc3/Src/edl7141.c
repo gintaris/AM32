@@ -22,6 +22,15 @@
  * board (KIT_PSC3M5_EVK on USB) the power stage, and so the 6EDL7141, often
  * gets its supply after the MCU has started.
  *
+ * The same board can lose the battery while the MCU keeps running. nFAULT
+ * then reads low (its pull-up goes to DVDD) and DEVICE_ID no longer answers:
+ * the driver is marked EDL_ERR_LOST, EN_DRV and nBRAKE go low and the retry
+ * starts it again. nBRAKE must be low before the supply returns: the same
+ * pin is VSENSE, read once at power-up, and a high level there selects
+ * DVDD 5 V instead of 3.3 V (datasheet Rev 1.20, section 3.9.2). A supply
+ * dip too short to see on nFAULT resets the registers; the check every
+ * EDL_CHECK_MS finds that and restarts the driver as well.
+ *
  * This file has no register access, the hooks are in edl7141_hal.c, so the
  * host unit tests can run it.
  */
@@ -40,6 +49,8 @@ volatile uint16_t edl7141_retries;
 
 extern uint8_t running;
 static uint16_t retry_ms;
+static uint16_t check_ms;
+static uint8_t check_index;
 
 typedef struct {
     uint8_t reg;
@@ -106,6 +117,13 @@ uint8_t edl7141Start(void)
     return fail(EDL_ERR_GATE_SUPPLY);
 }
 
+// a second read before giving up: one disturbed frame must not switch the
+// bridge off while the motor runs
+static uint8_t readsAs(uint8_t reg, uint16_t mask, uint16_t value)
+{
+    return (edl7141Read(reg) & mask) == value || (edl7141Read(reg) & mask) == value;
+}
+
 void edl7141Service(void)
 {
     if (edl7141_status != EDL_OK) {
@@ -118,7 +136,23 @@ void edl7141Service(void)
         return;
     }
     retry_ms = 0;
-    if (!edl7141FaultActive()) {
+    const uint8_t fault = edl7141FaultActive();
+    if (fault || ++check_ms >= EDL_CHECK_MS) {
+        // still there, and with our configuration (one register per check)?
+        check_ms = 0;
+        if (!readsAs(EDL_DEVICE_ID, EDL_DEV_ID_Msk, EDL_DEV_ID_VALUE)) {
+            (void)fail(EDL_ERR_LOST);   // supply gone: nBRAKE low before it returns
+            return;
+        }
+        const edl_cfg_t* cfg = &edl_config[check_index];
+        check_index = (uint8_t)((check_index + 1U) % (sizeof(edl_config) / sizeof(edl_config[0])));
+        if (!readsAs(cfg->reg, 0xFFFFU, cfg->value)) {
+            edl7141_bad_reg = cfg->reg;
+            (void)fail(EDL_ERR_LOST);   // reset by a supply dip: configure it again
+            return;
+        }
+    }
+    if (!fault) {
         return;
     }
     edl7141_fault_st = edl7141Read(EDL_FAULT_ST);
