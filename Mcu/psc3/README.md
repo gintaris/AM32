@@ -483,7 +483,11 @@ again), disarms, and switches the signal input off (`inputCaptureEnable()`,
 a signal the main loop resets the MCU after 2 s, which releases the latch;
 over protocol B6 a DISARM request releases it once the pins are high again.
 The OCD thresholds are the TLI4971 factory settings (not programmed). P2.0
-is also USER BTN2 of the EVK: pressing it tests the whole path. Still open: a
+is also USER BTN2 of the EVK: pressing it tests the whole path.
+The pins are secure (`SystemClock_Config()`), so port 2 raises the secure line
+`ioss_interrupts_sec_gpio_2` (IRQ 12); the plain `gpio_2` line stayed silent.
+Checked on the kit 2026-11-15: every press of USER BTN2 gives EVENT 11, often
+several per press (contact bounce, the TLI4971 output does not bounce). Still open: a
 hardware kill of the PWM counters through the trigger multiplexer, without
 the interrupt latency (about 0.5 us).
 

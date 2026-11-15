@@ -5104,8 +5104,11 @@
 #define OCD_PORT                2
 #define OCD1_PIN                0
 #define OCD2_PIN                1
-#define OCD_IRQ                 ioss_interrupts_gpio_2_IRQn
-#define OCD_IRQ_HANDLER         ioss_interrupts_gpio_2_IRQHandler
+// secure line of port 2: SystemClock_Config() makes every pin secure, and a
+// secure port raises only its sec_gpio interrupt (the plain gpio_2 line
+// stayed silent on the kit, found 2026-11-15 with USER BTN2)
+#define OCD_IRQ                 ioss_interrupts_sec_gpio_2_IRQn
+#define OCD_IRQ_HANDLER         ioss_interrupts_sec_gpio_2_IRQHandler
 
 // BOARD_ID divider of the power stage (10k / 10k = #1) on AN_B5 (J24-28),
 // SAR channel 13 = muxed sampler 12, input 1 (AN_B4..AN_B7 = 12..15)
