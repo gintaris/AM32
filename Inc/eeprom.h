@@ -69,7 +69,9 @@ typedef union EEprom_u {
             uint8_t filter_hz; // 181
             uint8_t debug_rate; // 182
             uint8_t term_enable; // 183
-            uint8_t reserved[8]; // 184-191
+            uint8_t fd_enable; // 184, DroneCAN over CAN FD (CANARD_ENABLE_CANFD builds)
+            uint8_t fd_data_rate; // 185, CAN FD data phase, Mbit/s
+            uint8_t reserved[6]; // 186-191
         } can;
     };
     uint8_t buffer[192];

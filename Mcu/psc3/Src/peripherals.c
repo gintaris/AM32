@@ -19,6 +19,7 @@
 // PCLK divider type for CLOCK_CTL / DIV_CMD
 #define PCLK_DIV_TYPE_8     0UL
 #define PCLK_DIV_TYPE_16    1UL
+#define PCLK_DIV_TYPE_16_5  2UL
 
 // watchdog: the free running WDT resets on the third match interrupt that is
 // not cleared, after about ILO period x 2 x 2^(IGNORE_BITS_ABOVE) = 2 s
@@ -86,6 +87,25 @@ static void connectPclkType(en_clk_dst_t dst, uint32_t type, uint32_t div)
 void connectPclk(en_clk_dst_t dst, uint32_t div16)
 {
     connectPclkType(dst, PCLK_DIV_TYPE_16, div16);
+}
+
+// set a 16.5 (fractional) divider of a PCLK group to divide by divide_by,
+// no fraction
+void pclkDivider16_5(uint32_t group, uint32_t div, uint32_t divide_by)
+{
+    PERI_PCLK_GR_Type* gr = &PERI_PCLK->GR[group];
+    const uint32_t sel = (PCLK_DIV_TYPE_16_5 << PERI_PCLK_GR_DIV_CMD_TYPE_SEL_Pos) | div;
+
+    gr->DIV_CMD = PERI_PCLK_GR_DIV_CMD_DISABLE_Msk | sel;
+    gr->DIV_16_5_CTL[div] = ((divide_by - 1UL) << PERI_PCLK_GR_DIV_16_5_CTL_INT16_DIV_Pos)
+        & PERI_PCLK_GR_DIV_16_5_CTL_INT16_DIV_Msk;
+    gr->DIV_CMD = PERI_PCLK_GR_DIV_CMD_ENABLE_Msk | (3UL << PERI_PCLK_GR_DIV_CMD_PA_TYPE_SEL_Pos)
+        | (0xFFUL << PERI_PCLK_GR_DIV_CMD_PA_DIV_SEL_Pos) | sel;
+}
+
+void connectPclk16_5(en_clk_dst_t dst, uint32_t div)
+{
+    connectPclkType(dst, PCLK_DIV_TYPE_16_5, div);
 }
 
 void connectPclk8(en_clk_dst_t dst, uint32_t div8)

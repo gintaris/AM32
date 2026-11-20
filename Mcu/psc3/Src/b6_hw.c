@@ -22,6 +22,7 @@
 #include "ADC.h"
 #include "IO.h"
 #include "b6_protocol.h"
+#include "common.h"
 #include "edl7141.h"
 #include "ocd.h"
 #include "peripherals.h"
@@ -166,6 +167,11 @@ void B6_UART_IRQ_HANDLER(void)
 
 void b6HwInputCapture(uint8_t on)
 {
+#if DRONECAN_SUPPORT
+    if (on && eepromBuffer.input_type == DRONECAN_IN) {
+        return;     // DroneCAN is the input: DShot / servo capture stays off
+    }
+#endif
     inputCaptureEnable(on);
 }
 

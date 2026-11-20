@@ -531,6 +531,78 @@ target `FILE_NAME`, build hash from git (`psc3makefile.mk`), MCU ID from the
 SFLASH die ID, power stage / input ID from BOARD_ID (1 for 10k / 10k).
 Not yet: STATUS, PARAM_*, DRV_REG_*, TRACE_GET (NACK 1).
 
+### DroneCAN (EVK_PSC3_CAN)
+
+`EVK_PSC3_CAN` is `EVK_PSC3` with DroneCAN (`DRONECAN_SUPPORT`, the AM32
+`Src/DroneCAN` stack) on the on-board TLE9251V. The PSC3 driver is
+`Src/DroneCAN/sys_can_psc3.c` (top level, next to the STM32 / AT32 drivers):
+
+- CANFD0 channel 1 (Bosch M_TTCAN, the family of the STM32G4 FDCAN), P5.2 RX /
+  P5.3 TX (HSIOM 11), connector J23, terminated on the EVK. The transceiver
+  STB (P7.6) is driven low: high is standby
+- classic CAN 1 Mbit/s: CAN clock from a 16.5 divider of the SCB PCLK group
+  (48 MHz), prescaler 3, 16 tq, sample point 87.5 %
+- message RAM (4 kB at CANFD0 + 0x10000): no ID filters, all data frames to
+  Rx FIFO 0 (32 elements), Tx FIFO of 16, 8 byte data fields
+- receive in the channel interrupt (priority 3), transmit from the DroneCAN
+  queue; bus off clears INIT to start the recovery
+- unique ID from the SFLASH die ID; `micros64()` reads `UTILITY_TIMER->COUNTER`
+- with `input_type` DroneCAN the signal input capture is switched off
+  (`inputCaptureEnable(0)`), and protocol B6 does not switch it back on
+- B6 and DroneCAN never drive the motor together: `RawCommand` is ignored
+  while B6 owns the throttle, and B6 ARM is refused while DroneCAN has armed
+- the settings stay in the PSC3 row: the 128 kB STM32 flash layout that
+  `DRONECAN_SUPPORT` selects is skipped for `MCU_PSC3`
+- the linker script keeps `.app_signature`, `set_app_signature.py` fills it
+- switchable termination: `setup_portpin()` drives a static GPIO
+  (`GPIO_PORT_PIN(port, pin)`), so a board that defines `CAN_TERM_PIN` and
+  `CAN_TERM_POLARITY` gets the `CAN_TERM_ENABLE` parameter (EEPROM byte 183).
+  The EVK termination is fixed (R144 / R145), so `EVK_PSC3_CAN` does not
+  define it. A future PSC3 bootloader should apply byte 183 too, so the
+  termination stays right during a firmware update over CAN
+- not yet: firmware update over DroneCAN, it needs the AM32 bootloader for
+  the PSC3 (the update request reboots into the boot stub and is lost; the
+  handshake registers only live in RAM)
+
+`ESC60A_PSC3_CAN` is the own ESC (schematic Rev 0.5 / 0.6) with DroneCAN:
+CANFD0 channel 0 on P8.2 RX / P8.3 TX (HSIOM 11, `gpio_psc3_e_lqfp_48.h`),
+transceiver (TLE9251VSJ, TJA1462AT from Rev 0.6) STB on P9.0 (10k pull-up, standby until the firmware drives it
+low) and switchable termination on P2.3 (`CAN_TERM_PIN`, polarity 1: high
+turns the PhotoMOS on, the 100k pull-down keeps it off without firmware), so
+`CAN_TERM_ENABLE` selects the bus ends when up to 8 ESCs share the bus.
+
+CAN FD: the PSC3 CAN builds have `CANARD_ENABLE_CANFD=1` (and a 8 kB libcanard
+pool for its 128 byte blocks). The DroneCAN parameters `CAN_FD` (default 0,
+classic CAN, so a flight controller without FDCAN keeps working) and
+`CAN_FD_RATE` (data phase in Mbit/s, default 4) take effect at the next start:
+
+- nominal phase 1 Mbit/s as before, data phase with bit rate switch from the
+  same 48 MHz CAN clock: 1, 2, 4 or 8 Mbit/s (sample point 75 %, 66.7 % at
+  8 Mbit/s). 5 Mbit/s cannot be made from 48 MHz; another rate keeps classic
+  CAN. Transmitter delay compensation from 2 Mbit/s, offset at the data
+  sample point
+- message RAM elements of 64 data bytes for both modes (32 Rx + 16 Tx = 3456
+  of the 4096 bytes); Rx passes the FDF flag to libcanard, Tx sets FDF / BRS
+  and pads to the next FD length
+- transfers go out as FD frames without the tail array optimisation (`TAO_ARG`
+  in `DroneCAN.c`); the node ID allocation request is built by hand with it,
+  so it always goes out as a classic frame (FD controllers take both)
+- ArduPilot: `CAN_P1_FDBITRATE` = the same rate, `CAN_D1_UC_OPTION` bit 2
+  (CANFD). Classic nodes on the same bus see FD frames as errors, so an FD
+  bus carries only FD capable nodes
+
+Tested on the EVK with ArduCopter 4.7 (H7 FDCAN) at 4 Mbit/s on 2026-11-20:
+node allocation, GetNodeInfo in 64 byte frames, `esc.Status` in one 16 byte
+frame instead of three, param GetSet, `RawCommand` into the input, no error
+counts on either side (the TLE9251V of the EVK is rated to 5 Mbit/s).
+
+`test_can_psc3` runs the driver against the real `cyip_canfd_v3.h` layout
+over plain memory: init values, Tx / Rx element encoding, Rx acknowledge,
+bus off, unique ID, `setup_portpin`, CAN FD (bit timing, TDC, DLC coding). Tested on the EVK with an ArduCopter 4.7
+flight controller (2026-11-20): node allocation, `RawCommand`, `esc.Status`,
+param GetSet, RestartNode. Note that AM32 resets after 0.5 s (armed) / 2 s
+without any CAN frame, as on the STM32 CAN targets.
+
 ### SCB clock dividers
 
 On the EVK the SCB PCLK group measured 48 MHz, not the 180 MHz of the
@@ -538,8 +610,8 @@ counters: protocol B6 first came out at 245760 baud (921600 * 48 / 180)
 while the timers kept real time. `PSC3_SCB_CLOCK_HZ` (48 MHz in the EVK
 hardware group, default the counter clock) now feeds the UART and SPI
 divider arithmetic: B6 48 MHz / 4 / 13, 6EDL7141 SPI 48 MHz / 3 / 8 = 2 MHz,
-telemetry 48 MHz / 32 / 13. Not checked on the 2GO kit and the ESC target,
-which still assume 180 MHz.
+telemetry 48 MHz / 32 / 13. The ESC60A group sets 48 MHz too (same clock tree);
+not checked on the 2GO kit, which still assumes 180 MHz.
 
 PCLK group 4 (the SCBs) has one 16 bit divider, two 8 bit, three 16.5 and
 one 24.5 divider (`psc3_config.h`). The telemetry UART uses the 16 bit one,

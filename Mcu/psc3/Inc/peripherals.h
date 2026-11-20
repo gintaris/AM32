@@ -155,5 +155,7 @@ void pclkDivider16(uint32_t group, uint32_t div16, uint32_t divide_by);
 void connectPclk(en_clk_dst_t dst, uint32_t div16);
 void pclkDivider8(uint32_t group, uint32_t div8, uint32_t divide_by);
 void connectPclk8(en_clk_dst_t dst, uint32_t div8);
+void pclkDivider16_5(uint32_t group, uint32_t div, uint32_t divide_by);
+void connectPclk16_5(en_clk_dst_t dst, uint32_t div);
 
 #endif /* PERIPHERALS_H_ */

@@ -31,6 +31,25 @@ CFLAGS_$(MCU) += -DB6_BUILD_HASH=0x$(if $(PSC3_GIT_HASH),$(PSC3_GIT_HASH),0)UL
 
 SRC_$(MCU) := $(foreach dir,$(SRC_DIR_$(MCU)),$(wildcard $(dir)/*.[cs]))
 
+# optional CAN support (EVK_PSC3_CAN): DroneCAN with Src/DroneCAN/sys_can_psc3.c.
+# The linker script keeps .app_signature for every target. CAN FD in libcanard
+# (DroneCAN parameter CAN_FD, default classic CAN); its 128 byte pool blocks
+# need a larger pool
+CFLAGS_CAN_$(MCU) = \
+	-DCANARD_ENABLE_CANFD=1 \
+	-DCANARD_POOL_SIZE=8192 \
+	-ISrc/DroneCAN \
+	-ISrc/DroneCAN/libcanard \
+	-ISrc/DroneCAN/dsdl_generated/include
+
+SRC_DIR_CAN_$(MCU) = Src/DroneCAN \
+		Src/DroneCAN/dsdl_generated/src \
+		Src/DroneCAN/libcanard
+
+SRC_CAN_$(MCU) := $(foreach dir,$(SRC_DIR_CAN_$(MCU)),$(wildcard $(dir)/*.[cs]))
+
+LDSCRIPT_CAN_$(MCU) := $(LDSCRIPT_$(MCU))
+
 # PSC3 bring-up images, not AM32 firmware targets:
 #  psc3_boot_stub - 4 kB first image that starts the firmware at 0x12001000
 #  psc3_blink     - LED blink with the AM32 startup and clock setup

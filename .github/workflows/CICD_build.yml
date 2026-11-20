@@ -52,6 +52,22 @@ jobs:
           --suppress=missingIncludeSystem
           Mcu/psc3/Src Mcu/psc3/Startup Mcu/psc3/Boot Src/b6_protocol.c Src/b6_am32.c
 
+      - name: PSC3 cppcheck (KIT_PSC3M5_EVK with DroneCAN)
+        run: >
+          cppcheck --enable=warning,performance --inline-suppr --error-exitcode=1 -q
+          -DEVK_PSC3_CAN -DCANARD_ENABLE_CANFD=1 -DUSE_MAKE -DPSC3M5FDS2LGQ1 -IInc -IMcu/psc3/Inc
+          -ISrc/DroneCAN -ISrc/DroneCAN/libcanard
+          --suppress=missingIncludeSystem
+          Src/DroneCAN/sys_can_psc3.c Src/DroneCAN/DroneCAN.c Mcu/psc3/Src/b6_hw.c
+
+      - name: PSC3 cppcheck (own ESC60A with DroneCAN, CAN channel 0 and switchable termination)
+        run: >
+          cppcheck --enable=warning,performance --inline-suppr --error-exitcode=1 -q
+          -DESC60A_PSC3_CAN -DCANARD_ENABLE_CANFD=1 -DUSE_MAKE -DPSC3M5FDS2LGQ1 -IInc -IMcu/psc3/Inc
+          -ISrc/DroneCAN -ISrc/DroneCAN/libcanard
+          --suppress=missingIncludeSystem
+          Src/DroneCAN/sys_can_psc3.c Src/DroneCAN/DroneCAN.c
+
   build:
     runs-on: ${{ matrix.os }}
 

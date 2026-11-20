@@ -58,6 +58,7 @@ SECTIONS
     . = ALIGN(4);
     *(.rodata)
     *(.rodata*)
+    KEEP(*(.app_signature))     /* DroneCAN firmware descriptor (_CAN targets) */
     . = ALIGN(4);
   } >FLASH
 

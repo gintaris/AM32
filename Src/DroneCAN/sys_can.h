@@ -72,6 +72,15 @@ int16_t sys_can_transmit(const CanardCANFrame* txf);
  */
 int16_t sys_can_receive(CanardCANFrame *rx_frame);
 
+#if CANARD_ENABLE_CANFD
+/*
+  select CAN FD with bit rate switch before sys_can_init(): nominal phase
+  1 Mbit/s, data phase data_mbit Mbit/s. Returns false (classic CAN stays)
+  for a data rate the driver cannot make
+ */
+bool sys_can_set_fd(uint8_t data_mbit);
+#endif
+
 /*
   get/set RTC backup registers. Used to detect firmware update state
  */

@@ -26,6 +26,9 @@
 // include the headers for the generated DroneCAN messages from the
 // dronecan_dsdlc compiler
 #include "dsdl_generated/dronecan_msgs.h"
+#ifdef USE_B6_PROTOCOL
+#include "b6_protocol.h"
+#endif
 
 #ifndef PREFERRED_NODE_ID
 #define PREFERRED_NODE_ID 0
@@ -39,6 +42,21 @@
 #define TARGET_PERIOD_US 1000U
 
 static CanardInstance canard;
+
+#if CANARD_ENABLE_CANFD
+// transmit CAN FD frames (parameters CAN_FD / CAN_FD_RATE, applied at start)
+static bool canfd_tx;
+#define CANFD_ARG , canfd_tx
+#define CLASSIC_ARG , false
+#else
+#define CANFD_ARG
+#define CLASSIC_ARG
+#endif
+#if CANARD_ENABLE_TAO_OPTION
+#define TAO_ARG , !canfd_tx      // tail array optimisation only in classic frames
+#else
+#define TAO_ARG
+#endif
 static uint8_t canard_memory_pool[CANARD_POOL_SIZE];
 
 struct CANStats canstats;
@@ -205,6 +223,10 @@ static const struct parameter {
 #ifdef CAN_TERM_PIN
         { "CAN_TERM_ENABLE",        T_BOOL,  0, 1,   0, &eepromBuffer.can.term_enable},
 #endif
+#if CANARD_ENABLE_CANFD
+        { "CAN_FD",                 T_BOOL,  0, 1,   0, &eepromBuffer.can.fd_enable},
+        { "CAN_FD_RATE",            T_UINT8, 1, 8,   4, &eepromBuffer.can.fd_data_rate},
+#endif
         { "STARTUP_TUNE",           T_STRING,0, 4,   0, &eepromBuffer.tune},
 };
 
@@ -312,6 +334,8 @@ static uint64_t micros64(void)
     __disable_irq();
 #ifdef ARTERY
     uint16_t cnt = UTILITY_TIMER->cval;
+#elif defined(MCU_PSC3)
+    uint16_t cnt = (uint16_t)UTILITY_TIMER->COUNTER;   // TCPWM counter, 1 MHz
 #else
     uint16_t cnt = UTILITY_TIMER->CNT;
 #endif
@@ -371,7 +395,7 @@ static void can_printf(const char *fmt, ...)
     va_end(ap);
     pkt.text.len = MIN(n, sizeof(pkt.text.data));
 
-    uint32_t len = uavcan_protocol_debug_LogMessage_encode(&pkt, buffer);
+    uint32_t len = uavcan_protocol_debug_LogMessage_encode(&pkt, buffer TAO_ARG);
     static uint8_t logmsg_transfer_id;
 
     canardBroadcast(&canard,
@@ -379,7 +403,7 @@ static void can_printf(const char *fmt, ...)
 		    UAVCAN_PROTOCOL_DEBUG_LOGMESSAGE_ID,
 		    &logmsg_transfer_id,
 		    CANARD_TRANSFER_PRIORITY_LOW,
-		    buffer, len);
+		    buffer, len CANFD_ARG);
 }
 
 /*
@@ -553,7 +577,7 @@ static void handle_param_GetSet(CanardInstance* ins, CanardRxTransfer* transfer)
     }
 
     uint8_t buffer[UAVCAN_PROTOCOL_PARAM_GETSET_RESPONSE_MAX_SIZE];
-    uint16_t total_size = uavcan_protocol_param_GetSetResponse_encode(&pkt, buffer);
+    uint16_t total_size = uavcan_protocol_param_GetSetResponse_encode(&pkt, buffer TAO_ARG);
 
     canardRequestOrRespond(ins,
                            transfer->source_node_id,
@@ -563,7 +587,7 @@ static void handle_param_GetSet(CanardInstance* ins, CanardRxTransfer* transfer)
                            transfer->priority,
                            CanardResponse,
                            &buffer[0],
-                           total_size);
+                           total_size CANFD_ARG);
 }
 
 /*
@@ -604,7 +628,7 @@ static void handle_param_ExecuteOpcode(CanardInstance* ins, CanardRxTransfer* tr
 
 
     uint8_t buffer[UAVCAN_PROTOCOL_PARAM_EXECUTEOPCODE_RESPONSE_MAX_SIZE];
-    uint16_t total_size = uavcan_protocol_param_ExecuteOpcodeResponse_encode(&pkt, buffer);
+    uint16_t total_size = uavcan_protocol_param_ExecuteOpcodeResponse_encode(&pkt, buffer TAO_ARG);
 
     canardRequestOrRespond(ins,
                            transfer->source_node_id,
@@ -614,7 +638,7 @@ static void handle_param_ExecuteOpcode(CanardInstance* ins, CanardRxTransfer* tr
                            transfer->priority,
                            CanardResponse,
                            &buffer[0],
-                           total_size);
+                           total_size CANFD_ARG);
 }
 
 /*
@@ -660,7 +684,7 @@ static void handle_GetNodeInfo(CanardInstance *ins, CanardRxTransfer *transfer)
 #endif
     pkt.name.len = strnlen((char*)pkt.name.data, sizeof(pkt.name.data));
 
-    uint16_t total_size = uavcan_protocol_GetNodeInfoResponse_encode(&pkt, buffer);
+    uint16_t total_size = uavcan_protocol_GetNodeInfoResponse_encode(&pkt, buffer TAO_ARG);
 
     canardRequestOrRespond(ins,
                            transfer->source_node_id,
@@ -670,7 +694,7 @@ static void handle_GetNodeInfo(CanardInstance *ins, CanardRxTransfer *transfer)
                            transfer->priority,
                            CanardResponse,
                            &buffer[0],
-                           total_size);
+                           total_size CANFD_ARG);
 }
 
 extern void transfercomplete();
@@ -682,6 +706,11 @@ extern void setInput();
  */
 static void set_input(uint16_t input)
 {
+#ifdef USE_B6_PROTOCOL
+    if (b6ThrottleActive()) {
+        return;     // the PC owns the throttle (protocol B6): never two sources
+    }
+#endif
     if (!armed && input != 0 && eepromBuffer.can.require_arming &&
         dronecan_armed && !eepromBuffer.can.require_zero_throttle) {
         // allow restart if unexpected ESC reboot in flight
@@ -795,7 +824,7 @@ static void handle_begin_firmware_update(CanardInstance* ins, CanardRxTransfer* 
         memset(&reply, 0, sizeof(reply));
         reply.error = UAVCAN_PROTOCOL_FILE_BEGINFIRMWAREUPDATE_RESPONSE_ERROR_OK;
 
-        uint32_t total_size = uavcan_protocol_file_BeginFirmwareUpdateResponse_encode(&reply, buffer);
+        uint32_t total_size = uavcan_protocol_file_BeginFirmwareUpdateResponse_encode(&reply, buffer TAO_ARG);
 
         canardRequestOrRespond(ins,
             transfer->source_node_id,
@@ -805,7 +834,7 @@ static void handle_begin_firmware_update(CanardInstance* ins, CanardRxTransfer* 
             transfer->priority,
             CanardResponse,
             &buffer[0],
-            total_size);
+            total_size CANFD_ARG);
 
         while (canardPeekTxQueue(&canard) != NULL) {
             DroneCAN_processTxQueue();
@@ -924,14 +953,17 @@ static void request_DNA()
 
     memmove(&allocation_request[1], &my_unique_id[DNA.node_id_allocation_unique_id_offset], uid_size);
 
-    // Broadcasting the request
+    // Broadcasting the request. The request above is built by hand with the
+    // tail array optimisation (no unique_id length), which only classic
+    // frames use, so it always goes out as a classic frame; CAN FD
+    // controllers receive classic frames too
     canardBroadcast(&canard,
 		    UAVCAN_PROTOCOL_DYNAMIC_NODE_ID_ALLOCATION_SIGNATURE,
 		    UAVCAN_PROTOCOL_DYNAMIC_NODE_ID_ALLOCATION_ID,
 		    &node_id_allocation_transfer_id,
 		    CANARD_TRANSFER_PRIORITY_LOW,
 		    &allocation_request[0],
-		    (uint16_t) (uid_size + 1));
+		    (uint16_t) (uid_size + 1) CLASSIC_ARG);
 
     // Preparing for timeout; if response is received, this value will be updated from the callback.
     DNA.node_id_allocation_unique_id_offset = 0;
@@ -1072,7 +1104,7 @@ static void send_NodeStatus(void)
     node_status.vendor_specific_status_code = canstats.num_commands;
     canstats.num_commands = 0;
 
-    uint32_t len = uavcan_protocol_NodeStatus_encode(&node_status, buffer);
+    uint32_t len = uavcan_protocol_NodeStatus_encode(&node_status, buffer TAO_ARG);
 
     // we need a static variable for the transfer ID. This is
     // incremeneted on each transfer, allowing for detection of packet
@@ -1085,7 +1117,7 @@ static void send_NodeStatus(void)
                     &transfer_id,
                     CANARD_TRANSFER_PRIORITY_LOW,
                     buffer,
-                    len);
+                    len CANFD_ARG);
 }
 
 /*
@@ -1129,7 +1161,7 @@ static void send_ESCStatus(void)
     pkt.power_rating_pct = 0; // how do we get this?
     pkt.esc_index = eepromBuffer.can.esc_index;
 
-    uint32_t len = uavcan_equipment_esc_Status_encode(&pkt, buffer);
+    uint32_t len = uavcan_equipment_esc_Status_encode(&pkt, buffer TAO_ARG);
 
     // we need a static variable for the transfer ID. This is
     // incremeneted on each transfer, allowing for detection of packet
@@ -1142,7 +1174,7 @@ static void send_ESCStatus(void)
                     &transfer_id,
                     CANARD_TRANSFER_PRIORITY_LOW,
                     buffer,
-                    len);
+                    len CANFD_ARG);
 }
 
 /*
@@ -1181,7 +1213,7 @@ static void send_FlexDebug(void)
     pkt.id = DRONECAN_PROTOCOL_FLEXDEBUG_AM32_RESERVE_START+0;
     pkt.u8.len = sizeof(debug1);
     memcpy(pkt.u8.data, (const uint8_t *)&debug1, sizeof(debug1));
-    uint32_t len = dronecan_protocol_FlexDebug_encode(&pkt, buffer);
+    uint32_t len = dronecan_protocol_FlexDebug_encode(&pkt, buffer TAO_ARG);
 
     static uint8_t transfer_id;
 
@@ -1191,7 +1223,7 @@ static void send_FlexDebug(void)
                     &transfer_id,
                     CANARD_TRANSFER_PRIORITY_LOW,
                     buffer,
-                    len);
+                    len CANFD_ARG);
 }
 
 
@@ -1252,6 +1284,10 @@ static void DroneCAN_Startup(void)
         canardSetLocalNodeID(&canard, eepromBuffer.can.can_node);
     }
 
+#if CANARD_ENABLE_CANFD
+    // CAN FD only on request: classic nodes take FD frames for errors
+    canfd_tx = eepromBuffer.can.fd_enable && sys_can_set_fd(eepromBuffer.can.fd_data_rate);
+#endif
     // initialise low level CAN peripheral hardware
     sys_can_init();
 
@@ -1273,6 +1309,9 @@ static void DroneCAN_Startup(void)
 #elif defined(MCU_SITL)
         NVIC_DisableIRQ(SITL_IRQ_DMA);
         NVIC_DisableIRQ(SITL_IRQ_EXTI15);
+#elif defined(MCU_PSC3)
+        extern void inputCaptureEnable(uint8_t on);
+        inputCaptureEnable(0);  // signal input capture, its DMA and processDshot() off
 #else
         #error "unsupported MCU"
 #endif

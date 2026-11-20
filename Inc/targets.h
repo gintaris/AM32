@@ -3502,9 +3502,21 @@
 
 // own ESC: 4-8S 60 A, PSC3M5FDS2ABQ1 (E-LQFP-48) with the Infineon 6EDL7141,
 // schematic ESC_PSC3_60A Rev 0.2 (not built yet)
+// ESC60A_PSC3_CAN: the same with DroneCAN (TLE9251VSJ, schematic Rev 0.5)
+#ifdef ESC60A_PSC3_CAN
+#define FILE_NAME               "ESC60A_PSC3_CAN"
+#define FIRMWARE_NAME           "ESC60A_CAN"
+#define DRONECAN_SUPPORT        1
+#define ESC60A_PSC3_COMMON
+#endif
+
 #ifdef ESC60A_PSC3
 #define FILE_NAME               "ESC60A_PSC3"
 #define FIRMWARE_NAME           "ESC60A_PSC3"
+#define ESC60A_PSC3_COMMON
+#endif
+
+#ifdef ESC60A_PSC3_COMMON
 #define DEAD_TIME               60          // TCPWM clock cycles at 180 MHz, 333 ns
 #define HARDWARE_GROUP_PSC3_ESC60
 #define TARGET_VOLTAGE_DIVIDER  110         // R80 20k / R81 2k
@@ -3517,9 +3529,21 @@
 // modular DEV ESC: a power stage with the 6EDL7141 plugs into the EVK headers
 // J5 / J24, a power input board with the TLI4971 feeds it. EVK rework: R6 off,
 // R7 0R on, so AN_B1 reaches J24-18 instead of the HRPWM RC filter
+// EVK_PSC3_CAN: the same with DroneCAN on the EVK CAN transceiver
+#ifdef EVK_PSC3_CAN
+#define FILE_NAME               "EVK_PSC3_CAN"
+#define FIRMWARE_NAME           "IFX_EVK_CAN"
+#define DRONECAN_SUPPORT        1
+#define EVK_PSC3_COMMON
+#endif
+
 #ifdef EVK_PSC3
 #define FILE_NAME               "EVK_PSC3"
 #define FIRMWARE_NAME           "IFX_EVK_PSC3"
+#define EVK_PSC3_COMMON
+#endif
+
+#ifdef EVK_PSC3_COMMON
 // 667 ns for the first runs of the DEV ESC Rev B: two paralleled BSC014N06NS
 // per switch at 400 / 500 mA gate current leave an estimated 100 ns of real
 // gap with 333 ns, and that could not be measured yet. Back to 60 (333 ns)
@@ -4880,6 +4904,9 @@
 #ifdef HARDWARE_GROUP_PSC3_ESC60
 
 #define MCU_PSC3
+// SCB PCLK group (UART, SPI, CAN): 48 MHz with the clock tree of
+// system_psc3.c, as measured on the EVK (same code, same device family)
+#define PSC3_SCB_CLOCK_HZ       48000000UL
 
 // Gate inputs INHx / INLx of the 6EDL7141: high and low side of each phase
 // on the line / line_compl pair of one TCPWM counter, so per phase duty
@@ -4972,6 +4999,25 @@
 #define LED_PORT                7
 #define LED_PIN                 0
 #define LED_ACTIVE_LOW
+
+// CAN (ESC60A_PSC3_CAN, schematic Rev 0.5): TLE9251VSJ on CANFD0 channel 0,
+// P8.2 RX / P8.3 TX (HSIOM 11, gpio_psc3_e_lqfp_48.h). STB on P9.0 with a
+// 10k pull-up: standby until the firmware drives it low. Switchable split
+// termination: P2.3 high turns it on (BSS138N -> 2x AQY282S PhotoMOS), 100k
+// pull-down keeps it off without firmware; DroneCAN parameter CAN_TERM_ENABLE
+#define CAN_CHANNEL             0
+#define CAN_RX_PORT             8
+#define CAN_RX_PIN              2
+#define CAN_TX_PORT             8
+#define CAN_TX_PIN              3
+#define CAN_HSIOM_SEL           11          // P8_2_CANFD0_TTCAN_RX0, P8_3_CANFD0_TTCAN_TX0
+#define CAN_PCLK                PCLK_CANFD0_CLOCK_CAN_EN0
+#define CAN_IRQ                 canfd_0_interrupts0_0_IRQn
+#define CAN_IRQ_HANDLER         canfd_0_interrupts0_0_IRQHandler
+#define CAN_STB_PORT            9
+#define CAN_STB_PIN             0
+#define CAN_TERM_PIN            GPIO_PORT_PIN(2, 3)
+#define CAN_TERM_POLARITY       1
 #endif
 
 #ifdef HARDWARE_GROUP_PSC3_EVK
@@ -5113,6 +5159,21 @@
 // BOARD_ID divider of the power stage (10k / 10k = #1) on AN_B5 (J24-28),
 // SAR channel 13 = muxed sampler 12, input 1 (AN_B4..AN_B7 = 12..15)
 #define BOARD_ID_ADC_CHANNEL    13
+
+// CAN (EVK_PSC3_CAN, Src/DroneCAN/sys_can_psc3.c): on-board TLE9251V on
+// CANFD0 channel 1, P5.2 RX / P5.3 TX (HSIOM 11, gpio_psc3_e_lqfp_80.h),
+// connector J23, terminated on the EVK. STB on P7.6: high is standby
+#define CAN_CHANNEL             1
+#define CAN_RX_PORT             5
+#define CAN_RX_PIN              2
+#define CAN_TX_PORT             5
+#define CAN_TX_PIN              3
+#define CAN_HSIOM_SEL           11          // P5_2_CANFD0_TTCAN_RX1, P5_3_CANFD0_TTCAN_TX1
+#define CAN_PCLK                PCLK_CANFD0_CLOCK_CAN_EN1
+#define CAN_IRQ                 canfd_0_interrupts0_1_IRQn
+#define CAN_IRQ_HANDLER         canfd_0_interrupts0_1_IRQHandler
+#define CAN_STB_PORT            7
+#define CAN_STB_PIN             6
 #endif
 
 /************************************ G031 Hardware Groups
@@ -6555,8 +6616,8 @@
 // default to no DroneCAN support
 #ifndef DRONECAN_SUPPORT
 #define DRONECAN_SUPPORT 0
-#elif DRONECAN_SUPPORT == 1
-// all DroneCAN ESCs use 128k flash layout
+#elif DRONECAN_SUPPORT == 1 && !defined(MCU_PSC3)
+// all DroneCAN ESCs use 128k flash layout (the PSC3 keeps its settings row)
 #undef EEPROM_START_ADD
 #define EEPROM_START_ADD (uint32_t)0x0801F800
 #endif
