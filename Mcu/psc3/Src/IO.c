@@ -114,9 +114,14 @@ void changeToInput(void)
 
 void changeToOutput(void)
 {
-    // idle high, then hand the pin to line[516]
-    IC_TIMER_REGISTER->LINE_SEL = LINE_LEVEL(TCPWM_LINE_H);
+    // idle high without a glitch: first the GPIO drives '1' (strong), then
+    // the pin goes to line[516], which the running counter already holds at
+    // '1'. A low pulse here looks like the start bit of the answer to the FC
+    // (seen with a Betaflight RP2350 FC: it sampled from that pulse and
+    // drove the line high again in the middle of the real answer)
     gpioWrite(INPUT_PIN_PORT, INPUT_PIN, 1);
+    gpioSetMode(INPUT_PIN_PORT, INPUT_PIN, GPIO_DM_STRONG, HSIOM_SEL_GPIO);
+    IC_TIMER_REGISTER->LINE_SEL = LINE_LEVEL(TCPWM_LINE_H);
     gpioSetMode(INPUT_PIN_PORT, INPUT_PIN, GPIO_DM_STRONG, INPUT_PIN_HSIOM_SEL);
 }
 
@@ -172,14 +177,14 @@ void sendDshotDma(void)
     setPclkDivider(PCLK_DIV_INPUT, (uint32_t)(uint8_t)output_timer_prescaler + 1UL);
 
     cnt->CTRL = (TCPWM_MODE_PWM << TCPWM_GRP_CNT_CTRL_MODE_Pos)
-        | (1UL << TCPWM_GRP_CNT_CTRL_PWM_DISABLE_MODE_Pos);    // keep LINE_SEL while stopped
+        | (3UL << TCPWM_GRP_CNT_CTRL_PWM_DISABLE_MODE_Pos);    // '1' while disabled or stopped
     cnt->PERIOD = DSHOT_OUT_BIT_CLOCKS - 1UL;
     cnt->COUNTER = 0;
     cnt->TR_IN_SEL0 = 1UL << TCPWM_GRP_CNT_TR_IN_SEL0_COUNT_SEL_Pos;
     cnt->TR_IN_SEL1 = 0;
     cnt->TR_OUT_SEL = (TCPWM_OUT_TC << TCPWM_GRP_CNT_TR_OUT_SEL_OUT0_Pos)
         | (7UL << TCPWM_GRP_CNT_TR_OUT_SEL_OUT1_Pos);
-    changeToOutput();
+    cnt->LINE_SEL = LINE_LEVEL(TCPWM_LINE_H);
 
     dw_descriptor.ctl = DW_CTL_RETRIG_4CYC | DW_CTL_INTR_DESCR | DW_CTL_TR_IN_ELEMENT | DW_CTL_CH_DISABLE
         | DW_CTL_DATA_WORD | DW_CTL_TYPE_1D;
@@ -191,6 +196,9 @@ void sendDshotDma(void)
 
     cnt->CTRL |= TCPWM_GRP_CNT_CTRL_ENABLED_Msk;
     cnt->TR_CMD = TCPWM_CMD_START;
+    // the pin last: the counter runs and holds '1' until the first bit (the
+    // padding is 7 or 14 idle bits, more than this switch takes)
+    changeToOutput();
 }
 
 // signal input off while another source owns the throttle (protocol B6) or
