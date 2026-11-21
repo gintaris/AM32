@@ -368,14 +368,22 @@ and DShot600 from a flight controller (RP2350B). Findings, all in
   and step of every PWM period of a motor start in `bemf_trace` (8192
   entries, 340 ms) for the debugger
 
-State at the end of the kit tests: the kit motor runs steadily at about 1 %
-throttle and loses sync above about 1.2 to 1.8 %. The traces show the steps
-after a falling cross much shorter than the others (about 3 ms against
-9.5 ms), so AM32 commutates almost at once after a falling cross instead of
-30 degrees later; the cause is still open. The kit is a hard bench for six
-step BEMF: the motor runs from 5 V, the BEMF is 10 to 25 ADC counts and the
-demagnetization is long. The timing work continues on the own ESC (4-8S,
-CSG comparators with a real neutral divider).
+First result: the kit motor ran steadily at about 1 % throttle and lost sync
+above about 1.2 to 1.8 %, with the steps after a falling cross much shorter
+than the others. There were two causes:
+- the off time threshold above 0 V made a rising cross late and a falling one
+  early; `comparator_adc.c` now holds the falling cross by a self calibrated
+  delay (found and checked in the SITL, `make AM32_SITL_CAN SITL_PSC3_BEMF=1`);
+- a broken divider wire left one channel floating and gave false crosses
+  (found with `PSC3_BEMF_TRACE`).
+
+State at the end of the kit tests: closed loop and stable up to 30 % throttle
+on USB 5 V. Above about 50 % throttle it still runs, but the AM32 low rpm
+throttle limit holds the duty at 20 % (about 6300 eRPM on 5 V). So the on time
+sampling (above 55 % duty) and the interrupt mode were never reached on the
+kit. The kit is a hard bench for six step BEMF: the motor runs from 5 V, the
+BEMF is 10 to 25 ADC counts and the demagnetization is long. The timing work
+continues on the own ESC (4-8S, CSG comparators with a real neutral divider).
 
 ## Own ESC target (ESC60A_PSC3) and the 6EDL7141
 
