@@ -407,9 +407,10 @@ void setup_portpin(uint16_t portpin, bool enable)
 
 /*
   The AM32 bootloader for the PSC3 does not exist yet, so the registers that
-  carry the firmware update handshake to it only need to survive in RAM for
-  now (DroneCAN.c reboots right after setting the update request, which
-  then has no effect)
+  carry the firmware update handshake to it only need to live in RAM for
+  now. They do not survive a reset; BeginFirmwareUpdate is refused
+  (DRONECAN_NO_BOOTLOADER_UPDATE in psc3makefile.mk) until the bootloader
+  exists
 */
 static uint32_t backup_registers[4];
 

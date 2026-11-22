@@ -35,7 +35,10 @@ SRC_$(MCU) := $(foreach dir,$(SRC_DIR_$(MCU)),$(wildcard $(dir)/*.[cs]))
 # The linker script keeps .app_signature for every target. CAN FD in libcanard
 # (DroneCAN parameter CAN_FD, default classic CAN); its 128 byte pool blocks
 # need a larger pool
+# There is no PSC3 bootloader with the DroneCAN update yet, so
+# BeginFirmwareUpdate is answered with ERROR_INVALID_MODE instead of a reboot
 CFLAGS_CAN_$(MCU) = \
+	-DDRONECAN_NO_BOOTLOADER_UPDATE=1 \
 	-DCANARD_ENABLE_CANFD=1 \
 	-DCANARD_POOL_SIZE=8192 \
 	-ISrc/DroneCAN \

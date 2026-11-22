@@ -812,6 +812,29 @@ static void handle_begin_firmware_update(CanardInstance* ins, CanardRxTransfer* 
         return;
     }
 
+#if defined(DRONECAN_NO_BOOTLOADER_UPDATE) && DRONECAN_NO_BOOTLOADER_UPDATE
+    {
+        // no bootloader with DroneCAN update on this MCU yet: refuse the
+        // request and keep running instead of rebooting into nothing
+        uint8_t buffer[UAVCAN_PROTOCOL_FILE_BEGINFIRMWAREUPDATE_RESPONSE_MAX_SIZE];
+        struct uavcan_protocol_file_BeginFirmwareUpdateResponse reply;
+        memset(&reply, 0, sizeof(reply));
+        reply.error = UAVCAN_PROTOCOL_FILE_BEGINFIRMWAREUPDATE_RESPONSE_ERROR_INVALID_MODE;
+        uint32_t total_size = uavcan_protocol_file_BeginFirmwareUpdateResponse_encode(&reply, buffer TAO_ARG);
+        canardRequestOrRespond(ins,
+            transfer->source_node_id,
+            UAVCAN_PROTOCOL_FILE_BEGINFIRMWAREUPDATE_SIGNATURE,
+            UAVCAN_PROTOCOL_FILE_BEGINFIRMWAREUPDATE_ID,
+            &transfer->transfer_id,
+            transfer->priority,
+            CanardResponse,
+            &buffer[0],
+            total_size CANFD_ARG);
+        can_printf("No DroneCAN bootloader");
+        return;
+    }
+#endif
+
     sys_can_disable_IRQ();
 
     uint32_t reg[2] = {0,0};
