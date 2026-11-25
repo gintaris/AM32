@@ -23,6 +23,7 @@
 #include "IO.h"
 #include "b6_protocol.h"
 #include "common.h"
+#include "current_zero.h"
 #include "edl7141.h"
 #include "ocd.h"
 #include "peripherals.h"
@@ -241,6 +242,12 @@ uint16_t b6HwFlags(void)
     }
     if (gpioRead(EDL_BRAKE_PORT, EDL_BRAKE_PIN) == 0U) {
         flags |= B6_FLAG_NBRAKE;
+    }
+#endif
+#ifdef CURRENT_ZERO_CAL
+    extern current_zero_t current_zero;
+    if (current_zero.valid) {
+        flags |= B6_FLAG_CURRENT_ZERO;
     }
 #endif
     return flags;

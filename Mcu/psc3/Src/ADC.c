@@ -19,6 +19,7 @@
 #include "ADC.h"
 
 #include "comparator.h"
+#include "current_zero.h"
 #include "edl7141.h"
 #include "peripherals.h"
 #include "targets.h"
@@ -28,6 +29,15 @@ extern uint16_t ADC_raw_volts;
 extern uint16_t ADC_raw_current;
 #ifdef BOARD_ID_ADC_CHANNEL
 volatile uint16_t ADC_raw_board_id;
+#endif
+
+#ifdef CURRENT_ZERO_CAL
+// raw reading at which main.c computes 0 A: it scales the raw value by 3300 / 41
+#define CURRENT_ZERO_NOMINAL    ((uint16_t)((CURRENT_OFFSET * 41UL + 16UL) / 33UL))
+#define CURRENT_ZERO_WINDOW     ((uint16_t)((CURRENT_ZERO_CAL * 41UL + 16UL) / 33UL))
+extern uint8_t running;
+current_zero_t current_zero;    // .zero / .valid readable over SWD, valid in the B6 flags
+static uint8_t current_zero_init;
 #endif
 
 #define ENTRY_BEMF          0U
@@ -132,6 +142,15 @@ void ADC_DMA_Callback(void)
 {
     ADC_raw_volts = (uint16_t)HPPASS->SAR.CFG.CHAN_RESULT[VOLTAGE_ADC_CHANNEL];
     ADC_raw_current = (uint16_t)HPPASS->SAR.CFG.CHAN_RESULT[CURRENT_ADC_CHANNEL];
+#ifdef CURRENT_ZERO_CAL
+    // zero of the current sensor learned while the motor is stopped (current_zero.h)
+    if (!current_zero_init) {
+        currentZeroInit(&current_zero, CURRENT_ZERO_NOMINAL);
+        current_zero_init = 1;
+    }
+    ADC_raw_current = currentZeroUpdate(&current_zero, ADC_raw_current, running == 0U,
+        CURRENT_ZERO_NOMINAL, CURRENT_ZERO_WINDOW);
+#endif
     ADC_raw_temp = (uint16_t)HPPASS->SAR.CFG.CHAN_RESULT[TEMP_ADC_CHANNEL];
 #ifdef BOARD_ID_ADC_CHANNEL
     ADC_raw_board_id = (uint16_t)HPPASS->SAR.CFG.CHAN_RESULT[BOARD_ID_ADC_CHANNEL];

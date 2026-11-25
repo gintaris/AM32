@@ -101,6 +101,7 @@
 #define B6_FLAG_DRIVER_ENABLED  (1U << 11)
 #define B6_FLAG_NBRAKE          (1U << 12)
 #define B6_FLAG_STOP_LATCHED    (1U << 13)
+#define B6_FLAG_CURRENT_ZERO    (1U << 14)  // current sensor zero learned (PSC3 CURRENT_ZERO_CAL)
 
 #define B6_WATCHDOG_DEFAULT_MS  200U
 #define B6_WATCHDOG_MIN_MS      20U

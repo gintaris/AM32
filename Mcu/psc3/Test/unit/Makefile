@@ -10,7 +10,7 @@ CFLAGS := -std=c11 -Wall -Wextra -Werror -Wno-unused-parameter -O1 -DUSE_MAKE -D
 OUT := build
 
 TESTS := test_phaseouts test_pwm_math test_timer_math test_comparator test_comparator_adc test_dshot test_telemetry \
-	test_edl7141 test_b6 test_b6_am32 test_can_psc3
+	test_edl7141 test_b6 test_b6_am32 test_can_psc3 test_current_zero
 
 .PHONY: test clean
 test: $(addprefix $(OUT)/,$(addsuffix .exe,$(TESTS)))
@@ -64,3 +64,7 @@ CFLAGS_CAN := $(patsubst -Istubs,-Istubs_can -Istubs,$(filter-out -DKIT_2GO_PSC3
 $(OUT)/test_can_psc3.exe: test_can_psc3.c $(ROOT)/Src/DroneCAN/sys_can_psc3.c stubs_can/peripherals.h unit.h $(ROOT)/Inc/targets.h
 	@mkdir -p $(OUT)
 	"$(HOSTCC)" $(CFLAGS_CAN) -o $@ test_can_psc3.c $(ROOT)/Src/DroneCAN/sys_can_psc3.c
+
+$(OUT)/test_current_zero.exe: test_current_zero.c $(ROOT)/Mcu/psc3/Src/current_zero.c $(ROOT)/Mcu/psc3/Inc/current_zero.h unit.h
+	@mkdir -p $(OUT)
+	"$(HOSTCC)" $(CFLAGS) -o $@ test_current_zero.c $(ROOT)/Mcu/psc3/Src/current_zero.c

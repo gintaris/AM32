@@ -3569,6 +3569,7 @@
 #define TARGET_VOLTAGE_DIVIDER  110         // R80 20k / R81 2k
 #define CURRENT_OFFSET          1650        // millivolts, TLI4971 VREF 1.65 V (semi-differential default)
 #define MILLIVOLT_PER_AMP       10          // TLI4971-A120T5 range S1 (+-120 A), datasheet Rev 1.20 table 4
+#define CURRENT_ZERO_CAL        60          // millivolts: learn the sensor zero while stopped within +-60 mV
 #define USE_SERIAL_TELEMETRY
 #endif
 
@@ -3601,6 +3602,7 @@
 #define TARGET_VOLTAGE_DIVIDER  177
 #define CURRENT_OFFSET          1650        // millivolts, TLI4971 VREF 1.65 V (semi-differential default)
 #define MILLIVOLT_PER_AMP       10          // TLI4971-A120T5 range S1 (+-120 A), datasheet Rev 1.20 table 4
+#define CURRENT_ZERO_CAL        60          // millivolts: learn the sensor zero while stopped within +-60 mV
 #define USE_SERIAL_TELEMETRY
 #endif
 
