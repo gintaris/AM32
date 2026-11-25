@@ -21,6 +21,7 @@
 #include "comparator.h"
 #include "current_zero.h"
 #include "edl7141.h"
+#include "functions.h"
 #include "peripherals.h"
 #include "targets.h"
 
@@ -31,14 +32,6 @@ extern uint16_t ADC_raw_current;
 volatile uint16_t ADC_raw_board_id;
 #endif
 
-#ifdef CURRENT_ZERO_CAL
-// raw reading at which main.c computes 0 A: it scales the raw value by 3300 / 41
-#define CURRENT_ZERO_NOMINAL    ((uint16_t)((CURRENT_OFFSET * 41UL + 16UL) / 33UL))
-#define CURRENT_ZERO_WINDOW     ((uint16_t)((CURRENT_ZERO_CAL * 41UL + 16UL) / 33UL))
-extern uint8_t running;
-current_zero_t current_zero;    // .zero / .valid readable over SWD, valid in the B6 flags
-static uint8_t current_zero_init;
-#endif
 
 #define ENTRY_BEMF          0U
 #define ENTRY_SLOW          1U
@@ -51,6 +44,39 @@ static uint8_t current_zero_init;
 #define SAMPLE_TIME_CLOCKS  64UL    // clk_hf3 / 2 = 90 MHz -> 711 ns for the dividers
 #define TRIG_1TO1_GROUP_PASS 2U     // PERI 1:1 trigger group 2, tcpwm tr_out1 -> pass.tr_b_in
 #define PWM_CNT_ADC_TRIGGER 5U      // counter 261, its tr_out1 reaches pass.tr_b_in[2]
+
+#ifdef CURRENT_ZERO_CAL
+// raw reading at which main.c computes 0 A: it scales the raw value by 3300 / 41
+#define CURRENT_ZERO_NOMINAL    ((uint16_t)((CURRENT_OFFSET * 41UL + 16UL) / 33UL))
+#define CURRENT_ZERO_WINDOW     ((uint16_t)((CURRENT_ZERO_CAL * 41UL + 16UL) / 33UL))
+#define CURRENT_ZERO_BOOT_SAMPLES   CURRENT_ZERO_MIN_SAMPLES
+#define CURRENT_ZERO_BOOT_SPACING   200U    // microseconds between the start-up samples (~51 ms)
+#define CURRENT_ZERO_WAIT_LOOPS     20000U  // a SAR entry takes a few microseconds
+extern uint8_t running;
+current_zero_t current_zero;    // .zero / .valid readable over SWD, valid in the B6 flags
+
+// start-up: gate outputs still off, learn the zero before the motor can be
+// started (B6 can arm and throttle within a few ms of a reset); the 1 kHz
+// updates keep refining it while the motor is stopped
+static void currentZeroStartup(void)
+{
+    currentZeroInit(&current_zero, CURRENT_ZERO_NOMINAL);
+    for (uint32_t i = 0; i < CURRENT_ZERO_BOOT_SAMPLES; i++) {
+        HPPASS->SAR.CFG.SAR_RESULT_INTR = 1UL << ENTRY_SLOW;
+        startADCConversion();
+        uint32_t wait = CURRENT_ZERO_WAIT_LOOPS;
+        while (!(HPPASS->SAR.CFG.SAR_RESULT_INTR & (1UL << ENTRY_SLOW)) && --wait) {
+        }
+        if (wait == 0U) {
+            return;     // no SAR result: stay uncorrected, learn in the main loop
+        }
+        (void)currentZeroUpdate(&current_zero,
+            (uint16_t)HPPASS->SAR.CFG.CHAN_RESULT[CURRENT_ADC_CHANNEL], 1U,
+            CURRENT_ZERO_NOMINAL, CURRENT_ZERO_WINDOW);
+        delayMicros(CURRENT_ZERO_BOOT_SPACING);
+    }
+}
+#endif
 
 // sampler enable bits of a channel for SEQ_ENTRY / SAMP_EN: channels 0..11 are
 // direct samplers, channels 12..27 use muxed sampler 12 + k (MUXk), k = (ch - 12) / 4,
@@ -130,6 +156,9 @@ void activateADC(void)
     NVIC_ClearPendingIRQ(COMPARATOR_IRQ);
     NVIC_EnableIRQ(COMPARATOR_IRQ);
 #endif
+#ifdef CURRENT_ZERO_CAL
+    currentZeroStartup();
+#endif
     startADCConversion();
 }
 
@@ -149,10 +178,6 @@ void ADC_DMA_Callback(void)
     ADC_raw_current = (uint16_t)HPPASS->SAR.CFG.CHAN_RESULT[CURRENT_ADC_CHANNEL];
 #ifdef CURRENT_ZERO_CAL
     // zero of the current sensor learned while the motor is stopped (current_zero.h)
-    if (!current_zero_init) {
-        currentZeroInit(&current_zero, CURRENT_ZERO_NOMINAL);
-        current_zero_init = 1;
-    }
     ADC_raw_current = currentZeroUpdate(&current_zero, ADC_raw_current, running == 0U,
         CURRENT_ZERO_NOMINAL, CURRENT_ZERO_WINDOW);
 #endif
