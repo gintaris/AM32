@@ -452,7 +452,7 @@ and the header pins from the EVK schematic 630-60703-01 Rev 5.0.
 | Neutral (CSG -) | AN_A2 / A3 / A4 | J24-27 / 22 / 24 |
 | Current, NTC, VBAT | AN_A0, AN_A1, AN_A5 | J24-23, 25, 26 |
 | TLI4971 OCD1, OCD2 (over-current, active low) | P2.0, P2.1 (GPIO interrupt) | J24-14, 11 |
-| BOARD_ID | AN_B5 (SAR channel 13) | J24-28 |
+| BOARD_ID | AN_B5 (SAR channel 16, muxed sampler 13 / MUX1 input 0) | J24-28 |
 | Protocol B6 (PC) | P6.2 RX, P6.3 TX (SCB3, HSIOM 16) | KitProg3 USB-UART |
 | LED | P8.4 (LED2, active low) | - |
 

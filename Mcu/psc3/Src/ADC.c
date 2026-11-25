@@ -53,18 +53,23 @@ static uint8_t current_zero_init;
 #define PWM_CNT_ADC_TRIGGER 5U      // counter 261, its tr_out1 reaches pass.tr_b_in[2]
 
 // sampler enable bits of a channel for SEQ_ENTRY / SAMP_EN: channels 0..11 are
-// direct samplers, channels 12..15 use muxed sampler 12 (MUX0)
+// direct samplers, channels 12..27 use muxed sampler 12 + k (MUXk), k = (ch - 12) / 4,
+// with MUXk_SEL = (ch - 12) % 4 (e.g. AN_B4 = 12: MUX0 input 0, AN_B5 = 16: MUX1 input 0)
 static uint32_t samplerBits(uint32_t channel)
 {
     if (channel < 12U) {
         return 1UL << channel;
     }
-    return (1UL << 12) | ((channel - 12U) << HPPASS_SAR_SEQ_ENTRY_MUX0_SEL_Pos);
+    const uint32_t k = (channel - 12U) / 4U;
+    const uint32_t sel = (channel - 12U) % 4U;
+    return (1UL << (HPPASS_SAR_SEQ_ENTRY_MUXED_SAMPLER_EN_Pos + k))
+        | (sel << (HPPASS_SAR_SEQ_ENTRY_MUX0_SEL_Pos + 2U * k));
 }
 
 static uint32_t sampEnBits(uint32_t channel)
 {
-    return (channel < 12U) ? (1UL << channel) : (1UL << HPPASS_SAR_CFG_SAMP_EN_MUXED_SAMP_EN_Pos);
+    return (channel < 12U) ? (1UL << channel)
+                           : (1UL << (HPPASS_SAR_CFG_SAMP_EN_MUXED_SAMP_EN_Pos + (channel - 12U) / 4U));
 }
 
 void ADC_Init(void)

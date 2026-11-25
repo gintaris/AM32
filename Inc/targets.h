@@ -5206,8 +5206,9 @@
 #define OCD_IRQ_HANDLER         ioss_interrupts_sec_gpio_2_IRQHandler
 
 // BOARD_ID divider of the power stage (10k / 10k = #1) on AN_B5 (J24-28),
-// SAR channel 13 = muxed sampler 12, input 1 (AN_B4..AN_B7 = 12..15)
-#define BOARD_ID_ADC_CHANNEL    13
+// SAR channel 16 = muxed sampler 13 (MUX1), input 0 (PSOC Control C3 architecture
+// reference manual; channel 13 read about 0 on the DEV ESC Rev B)
+#define BOARD_ID_ADC_CHANNEL    16
 
 // CAN (EVK_PSC3_CAN, Src/DroneCAN/sys_can_psc3.c): on-board TLE9251V on
 // CANFD0 channel 1, P5.2 RX / P5.3 TX (HSIOM 11, gpio_psc3_e_lqfp_80.h),
