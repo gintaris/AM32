@@ -29,6 +29,7 @@ uint16_t b6HwPowerInputId(void);
 uint16_t b6HwFlags(void);           // B6_FLAG_OCD1 / OCD2 / DRIVER_FAULT / DRIVER_ENABLED / NBRAKE
 uint8_t b6HwFault(void);            // a fault that refuses ARM
 uint8_t b6HwOcdTripped(void);       // OCD bits latched since the last call (bit 0 OCD1, bit 1 OCD2)
-void b6HwClearFaults(void);         // DISARM request: release the over-current latch if the inputs are high again
+void b6HwClearFaults(void);
+void b6HwRestart(void);             // MCU reset (PARAM_SAVE)         // DISARM request: release the over-current latch if the inputs are high again
 
 #endif /* B6_AM32_H_ */

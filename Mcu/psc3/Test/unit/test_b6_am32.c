@@ -13,6 +13,8 @@
  *  - an over-current latch sends EVENT, disarms and keeps the input off
  *    until a DISARM request finds the OCD pins high again
  *  - telemetry units
+ *  - settings: PARAM_SET stages, PARAM_SAVE writes eepromBuffer and the flash
+ *    and restarts, refused while the motor runs
  */
 
 #include <string.h>
@@ -97,6 +99,18 @@ void __disable_irq(void)
 
 void __enable_irq(void)
 {
+}
+
+static int eeprom_saves, hw_restarts;
+
+void saveEEpromSettings(void)
+{
+    eeprom_saves++;
+}
+
+void b6HwRestart(void)
+{
+    hw_restarts++;
 }
 
 // ---------------------------------------------------------------- MCU hooks
@@ -272,6 +286,90 @@ static void testResetEvent(void)
     decode();
     CHECK(eventCount(B6_EVT_RESET) == 1, "EVENT reset at start");
     CHECK(rx_count == 1 && u32(rx[0].payload + 6) == 0x10, "reset cause as event data");
+}
+
+static uint16_t le16(const uint8_t* p)
+{
+    return (uint16_t)(p[0] | (p[1] << 8));
+}
+
+static const b6_frame_t* findType(uint8_t type, uint8_t seq)
+{
+    for (int i = 0; i < rx_count; i++) {
+        if (rx[i].type == type && rx[i].seq == seq) {
+            return &rx[i];
+        }
+    }
+    return NULL;
+}
+
+// index of a setting by name, -1 if missing
+static int paramIndex(const char* name)
+{
+    for (uint16_t i = 0; i < 64; i++) {
+        const uint8_t q[2] = { (uint8_t)i, 0 };
+        queue(100, B6_PARAM_INFO, q, 2);
+        poll();
+        const b6_frame_t* f = findType(B6_PARAM_INFO, 100);
+        if (!f) {
+            return -1;
+        }
+        if (strncmp((const char*)f->payload + 20, name, B6_PARAM_NAME_LEN) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static void testParams(void)
+{
+    reset();
+    eepromBuffer.motor_kv = 55;     // 55 * 40 + 20 = 2220 KV
+    eepromBuffer.motor_poles = 14;
+    eepromBuffer.limits.temperature = 255;
+    b6Am32Init();
+    decode();
+    eeprom_saves = hw_restarts = 0;
+
+    const int kv = paramIndex("motor_kv"), poles = paramIndex("motor_poles"), temp = paramIndex("temperature_limit");
+    CHECK(kv >= 0 && poles >= 0 && temp >= 0, "settings motor_kv, motor_poles, temperature_limit listed");
+    queue(1, B6_PARAM_INFO, (const uint8_t[]){ (uint8_t)kv, 0 }, 2);
+    poll();
+    const b6_frame_t* f = findType(B6_PARAM_INFO, 1);
+    CHECK(f && le16(f->payload + 12) == 40 && le16(f->payload + 14) == 1 && u32(f->payload + 16) == 20
+        && memcmp(f->payload + 44, "KV", 3) == 0, "motor_kv shown as raw * 40 + 20 KV");
+    queue(2, B6_PARAM_GET, (const uint8_t[]){ (uint8_t)kv, 0 }, 2);
+    queue(3, B6_PARAM_GET, (const uint8_t[]){ (uint8_t)temp, 0 }, 2);
+    poll();
+    f = findType(B6_PARAM_GET, 2);
+    CHECK(f && le16(f->payload + 2) == 55 && le16(f->payload + 4) == 55, "PARAM_GET motor_kv 55 (staged = saved)");
+    f = findType(B6_PARAM_GET, 3);
+    CHECK(f && le16(f->payload + 2) == 255, "temperature_limit 255 (off) readable");
+
+    queue(4, B6_PARAM_SET, (const uint8_t[]){ (uint8_t)poles, 0, 13, 0 }, 4);
+    queue(5, B6_PARAM_SET, (const uint8_t[]){ (uint8_t)poles, 0, 38, 0 }, 4);
+    queue(6, B6_PARAM_SET, (const uint8_t[]){ (uint8_t)kv, 0, 31, 0 }, 4);
+    poll();
+    CHECK(responseCode(4) == B6_NACK_RANGE && responseCode(5) == B6_NACK_RANGE, "odd or too many poles: NACK 7");
+    f = findType(B6_PARAM_GET, 6);
+    CHECK(f && le16(f->payload + 2) == 31 && le16(f->payload + 4) == 55 && eepromBuffer.motor_kv == 55,
+        "PARAM_SET stages 31, the live setting stays 55 until SAVE");
+
+    running = 1;    // turning, e.g. DShot armed
+    queue(7, B6_PARAM_SET, (const uint8_t[]){ (uint8_t)kv, 0, 30, 0 }, 4);
+    queue(8, B6_PARAM_SAVE, NULL, 0);
+    poll();
+    CHECK(responseCode(7) == B6_NACK_ARMED && responseCode(8) == B6_NACK_ARMED && eeprom_saves == 0,
+        "PARAM_SET / SAVE while the motor runs: NACK 3, no flash write");
+    running = 0;
+
+    queue(9, B6_PARAM_SAVE, NULL, 0);
+    poll();
+    CHECK(responseCode(9) == 0 && eepromBuffer.motor_kv == 31 && eeprom_saves == 1, "PARAM_SAVE: ACK, eepromBuffer and flash written");
+    CHECK(hw_restarts == 0, "restart only after the delay");
+    ticks(LOOP_FREQUENCY_HZ * B6_RESET_DELAY_MS / 1000U);
+    poll();
+    CHECK(hw_restarts == 1, "MCU restart B6_RESET_DELAY_MS after the ACK");
 }
 
 static void testExclusiveInputs(void)
@@ -455,5 +553,6 @@ int main(void)
     testWatchdogStopsMotor();
     testOverCurrent();
     testTelemetryUnits();
+    testParams();
     return report("test_b6_am32");
 }

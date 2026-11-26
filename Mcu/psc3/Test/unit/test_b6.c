@@ -1,6 +1,6 @@
 /*
  * Host test for protocol B6 (Src/b6_protocol.c): CRC, framing and resync,
- * the requests of v0.1, the link watchdog, STOP latch, the armed-only
+ * the requests of v0.1 (PARAM_* included), the link watchdog, STOP latch, the armed-only
  * refusals and the telemetry record layout. The b6Port* hooks are fakes that
  * record what the firmware glue would have been asked to do; transmitted
  * frames go through the same parser as a PC would use.
@@ -110,6 +110,60 @@ void b6PortTelemetry(b6_telemetry_t* t)
     t->desyncs = 3;
 }
 
+// two settings: 0 = 0..100, 1 = even 2..36; staged until SAVE
+static uint16_t par_saved[2] = { 10, 14 }, par_staged[2] = { 10, 14 };
+static int par_saves, restarts;
+
+uint16_t b6PortParamCount(void)
+{
+    return 2;
+}
+
+uint8_t b6PortParamInfo(uint16_t index, b6_param_info_t* info)
+{
+    info->flags = B6_PARAM_RESTART | (index ? B6_PARAM_EVEN : 0);
+    info->min = index ? 2 : 0;
+    info->max = index ? 36 : 100;
+    info->def = 0xFFFF;
+    info->mul = 40;
+    info->div = 1;
+    info->add = -150;
+    memcpy(info->name, index ? "motor_poles" : "motor_kv", index ? 11 : 8);
+    memcpy(info->unit, "KV", 2);
+    return 0;
+}
+
+uint8_t b6PortParamGet(uint16_t index, uint16_t* value, uint16_t* saved)
+{
+    *value = par_staged[index];
+    *saved = par_saved[index];
+    return 0;
+}
+
+uint8_t b6PortParamSet(uint16_t index, uint16_t value)
+{
+    if (value > (index ? 36 : 100) || (index && (value < 2 || (value & 1U)))) {
+        return B6_NACK_RANGE;
+    }
+    par_staged[index] = value;
+    return 0;
+}
+
+uint8_t b6PortParamSave(uint8_t* changed)
+{
+    *changed = memcmp(par_staged, par_saved, sizeof(par_saved)) != 0;
+    if (*changed) {
+        memcpy(par_saved, par_staged, sizeof(par_saved));
+        par_saves++;
+    }
+    return 0;
+}
+
+void b6PortRestart(void)
+{
+    restarts++;
+}
+
 // ---------------------------------------------------------------- helpers
 static void reset(void)
 {
@@ -120,6 +174,9 @@ static void reset(void)
     bidir = 0;
     arms = disarms = disarm_requests = cuts = links = throttle_calls = 0;
     last_throttle = 0;
+    par_saved[0] = par_staged[0] = 10;
+    par_saved[1] = par_staged[1] = 14;
+    par_saves = restarts = 0;
 }
 
 static void request(uint8_t seq, uint8_t type, const uint8_t* payload, uint16_t len)
@@ -510,8 +567,9 @@ static void testArmedRefusals(void)
     request(2, B6_DRV_REG_WRITE, reg, 3);
     request(3, B6_BEEP, NULL, 0);
     decodeTx();
-    CHECK(responseCode(1) == B6_NACK_UNKNOWN && responseCode(2) == B6_NACK_UNKNOWN,
-        "PARAM_SAVE / DRV_REG_WRITE disarmed: not implemented yet (NACK 1)");
+    CHECK(responseCode(1) == 0 && responseCode(2) == B6_NACK_UNKNOWN,
+        "PARAM_SAVE disarmed: ACK; DRV_REG_WRITE not implemented yet (NACK 1)");
+    CHECK(par_saves == 0, "PARAM_SAVE without a change writes nothing");
     CHECK(responseCode(3) == 0, "BEEP disarmed: ACK");
 
     armOk(4);
@@ -521,6 +579,67 @@ static void testArmedRefusals(void)
     decodeTx();
     CHECK(responseCode(5) == B6_NACK_ARMED && responseCode(6) == B6_NACK_ARMED && responseCode(7) == B6_NACK_ARMED,
         "PARAM_SAVE / DRV_REG_WRITE / BEEP armed: NACK 3");
+}
+
+static void testParams(void)
+{
+    reset();
+    const uint8_t i0[2] = { 0, 0 }, i1[2] = { 1, 0 }, i9[2] = { 9, 0 };
+    request(1, B6_PARAM_INFO, i1, 2);
+    request(2, B6_PARAM_INFO, i9, 2);
+    request(3, B6_PARAM_INFO, i0, 1);
+    decodeTx();
+    const b6_frame_t* f = findType(B6_PARAM_INFO, 0);
+    CHECK(f && f->seq == 1 && f->len == B6_PARAM_INFO_SIZE, "PARAM_INFO answer: 52 bytes, request sequence");
+    CHECK(f && u16(f->payload) == 1 && u16(f->payload + 2) == 2 && f->payload[4] == 0
+        && f->payload[5] == (B6_PARAM_RESTART | B6_PARAM_EVEN), "PARAM_INFO: index, count, type, flags");
+    CHECK(f && u16(f->payload + 6) == 2 && u16(f->payload + 8) == 36 && u16(f->payload + 10) == 0xFFFF
+        && u16(f->payload + 12) == 40 && u16(f->payload + 14) == 1 && (int32_t)u32(f->payload + 16) == -150,
+        "PARAM_INFO: min, max, default, mul, div, add (signed)");
+    CHECK(f && memcmp(f->payload + 20, "motor_poles", 12) == 0 && f->payload[20 + 23] == 0
+        && memcmp(f->payload + 44, "KV", 3) == 0, "PARAM_INFO: zero padded name (24) and unit (8)");
+    CHECK(responseCode(2) == B6_NACK_RANGE && responseCode(3) == B6_NACK_BAD_LENGTH,
+        "PARAM_INFO: index past the end NACK 7, short request NACK 2");
+
+    const uint8_t set_ok[4] = { 1, 0, 20, 0 }, set_odd[4] = { 1, 0, 21, 0 }, set_big[4] = { 0, 0, 101, 0 };
+    request(4, B6_PARAM_SET, set_ok, 4);
+    request(5, B6_PARAM_SET, set_odd, 4);
+    request(6, B6_PARAM_SET, set_big, 4);
+    request(7, B6_PARAM_SET, set_ok, 2);
+    request(8, B6_PARAM_GET, i1, 2);
+    decodeTx();
+    f = findType(B6_PARAM_GET, 0);
+    CHECK(f && f->seq == 4 && f->len == B6_PARAM_VALUE_SIZE && u16(f->payload) == 1 && u16(f->payload + 2) == 20
+        && u16(f->payload + 4) == 14, "PARAM_SET answers with the staged value and the saved one");
+    CHECK(responseCode(5) == B6_NACK_RANGE && responseCode(6) == B6_NACK_RANGE && responseCode(7) == B6_NACK_BAD_LENGTH,
+        "PARAM_SET: odd / too big NACK 7, short NACK 2");
+    f = findType(B6_PARAM_GET, 1);
+    CHECK(f && f->seq == 8 && u16(f->payload + 2) == 20 && u16(f->payload + 4) == 14, "PARAM_GET: staged 20, saved 14");
+
+    armOk(9);
+    request(10, B6_PARAM_SET, set_ok, 4);
+    request(11, B6_PARAM_GET, i1, 2);
+    decodeTx();
+    CHECK(responseCode(10) == B6_NACK_ARMED, "PARAM_SET armed: NACK 3");
+    CHECK(findType(B6_PARAM_GET, 0) != NULL, "PARAM_GET works while armed");
+    request(12, B6_DISARM, NULL, 0);
+
+    request(13, B6_PARAM_SAVE, NULL, 0);
+    decodeTx();
+    CHECK(responseCode(13) == 0 && par_saves == 1 && par_saved[1] == 20, "PARAM_SAVE disarmed: ACK, the staged value written");
+    b6Service();
+    CHECK(restarts == 0, "no restart before B6_RESET_DELAY_MS");
+    request(14, B6_ARM, NULL, 0);
+    request(15, B6_PARAM_SET, set_ok, 4);
+    decodeTx();
+    CHECK(responseCode(14) == B6_NACK_BUSY && responseCode(15) == B6_NACK_BUSY && arms == 1,
+        "ARM and PARAM_SET refused (NACK 8) while the restart is pending");
+    ticks(MS(B6_RESET_DELAY_MS) - 1);
+    b6Service();
+    CHECK(restarts == 0, "no restart 1 tick before the delay");
+    ticks(1);
+    b6Service();
+    CHECK(restarts == 1, "restart B6_RESET_DELAY_MS after the ACK");
 }
 
 static void testForceDisarm(void)
@@ -614,6 +733,7 @@ int main(void)
     testWatchdog();
     testStopLatch();
     testArmedRefusals();
+    testParams();
     testForceDisarm();
     testTelemetry();
     testThrottleScale();

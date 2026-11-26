@@ -112,6 +112,15 @@
 #define B6_TELEMETRY_SIZE       44U
 #define B6_HELLO_SIZE           50U
 #define B6_EVENT_SIZE           10U
+#define B6_PARAM_INFO_SIZE      52U
+#define B6_PARAM_VALUE_SIZE     6U
+#define B6_PARAM_NAME_LEN       24U
+#define B6_PARAM_UNIT_LEN       8U
+#define B6_RESET_DELAY_MS       50U     // PARAM_SAVE: ACK leaves the UART before the restart
+
+// PARAM_INFO flags
+#define B6_PARAM_RESTART        (1U << 0)   // takes effect after PARAM_SAVE (the ESC restarts)
+#define B6_PARAM_EVEN           (1U << 1)   // only even values
 #define B6_TEMP_UNKNOWN         INT16_MIN   // temperature not measured
 
 typedef struct {
@@ -159,6 +168,20 @@ typedef struct {
     uint32_t dropped;           // bytes skipped while looking for a frame
 } b6_parser_t;
 
+// one setting: an unsigned byte. Shown as (raw * mul + add) / div in unit
+typedef struct {
+    uint8_t type;               // 0: unsigned 8 bit
+    uint8_t flags;              // B6_PARAM_*
+    uint16_t min;
+    uint16_t max;
+    uint16_t def;               // 0xFFFF: no default given
+    uint16_t mul;
+    uint16_t div;
+    int32_t add;
+    char name[B6_PARAM_NAME_LEN];   // zero padded
+    char unit[B6_PARAM_UNIT_LEN];
+} b6_param_info_t;
+
 typedef struct {
     uint32_t frames;
     uint32_t tx_dropped;        // frames that did not fit into the transmit buffer
@@ -172,6 +195,7 @@ void b6ParserPush(b6_parser_t* p, uint8_t byte);
 uint8_t b6ParserNext(b6_parser_t* p, b6_frame_t* f);
 void b6PackTelemetry(uint8_t out[B6_TELEMETRY_SIZE], const b6_telemetry_t* t);
 void b6PackHello(uint8_t out[B6_HELLO_SIZE], const b6_hello_t* h);
+void b6PackParamInfo(uint8_t out[B6_PARAM_INFO_SIZE], uint16_t index, uint16_t count, const b6_param_info_t* i);
 uint16_t b6ThrottleToInput(int16_t permille, uint8_t bidirectional);
 
 // session
@@ -203,5 +227,11 @@ uint8_t b6PortBidirectional(void);
 uint8_t b6PortBeep(void);                                   // 0, or a NACK code
 void b6PortHello(b6_hello_t* h);
 void b6PortTelemetry(b6_telemetry_t* t);
+uint16_t b6PortParamCount(void);
+uint8_t b6PortParamInfo(uint16_t index, b6_param_info_t* info);       // 0, or a NACK code
+uint8_t b6PortParamGet(uint16_t index, uint16_t* value, uint16_t* saved);
+uint8_t b6PortParamSet(uint16_t index, uint16_t value);                // range checked, staged until SAVE
+uint8_t b6PortParamSave(uint8_t* changed);                             // writes flash if *changed is set
+void b6PortRestart(void);                                              // MCU reset after a PARAM_SAVE
 
 #endif /* B6_PROTOCOL_H_ */

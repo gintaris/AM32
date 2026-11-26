@@ -284,4 +284,11 @@ void b6HwClearFaults(void)
 #endif
 }
 
+
+// PARAM_SAVE wrote the settings: start again so main.c applies them
+void b6HwRestart(void)
+{
+    NVIC_SystemReset();
+}
+
 #endif // USE_B6_PROTOCOL

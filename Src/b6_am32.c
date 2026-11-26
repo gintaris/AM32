@@ -56,6 +56,7 @@ extern int32_t consumed_current;
 extern uint8_t temp_advance;
 extern uint8_t auto_advance_level;
 extern uint8_t bemf_timeout_happened;
+void saveEEpromSettings(void);     // main.c
 #if DRONECAN_SUPPORT
 extern uint32_t desync_happened;
 #else
@@ -270,8 +271,145 @@ void b6PortTelemetry(b6_telemetry_t* t)
     t->desyncs = (uint16_t)desync_happened;
 }
 
+// ---------------------------------------------------------------- settings
+// A subset of the EEPROM settings for PARAM_INFO / GET / SET / SAVE. SET
+// changes a staged copy only; SAVE writes it to the flash and restarts the
+// MCU, because main.c applies the settings once at start-up.
+typedef struct {
+    uint8_t offset;             // byte in eepromBuffer.buffer
+    uint8_t flags;
+    uint8_t min;
+    uint8_t max;
+    uint16_t mul;
+    uint16_t div;
+    int16_t add;
+    const char* name;
+    const char* unit;
+} param_t;
+
+#define P(off, fl, lo, hi, mu, di, ad, nm, un) { off, B6_PARAM_RESTART | (fl), lo, hi, mu, di, ad, nm, un }
+
+static const param_t params[] = {
+    P(26, 0, 0, 255, 40, 1, 20, "motor_kv", "KV"),
+    P(27, B6_PARAM_EVEN, 2, 36, 1, 1, 0, "motor_poles", ""),
+    P(25, 0, 50, 150, 1, 1, 0, "startup_power", ""),
+    P(23, 0, 10, 42, 15, 16, -150, "timing_advance", "deg"),
+    P(47, 0, 0, 1, 1, 1, 0, "auto_advance", ""),
+    P(24, 0, 16, 48, 1, 1, 0, "pwm_frequency", "kHz"),
+    P(21, 0, 0, 2, 1, 1, 0, "variable_pwm", ""),
+    P(20, 0, 0, 1, 1, 1, 0, "complementary_pwm", ""),
+    P(5, 0, 1, 250, 1, 10, 0, "max_ramp", "%/ms"),
+    P(6, 0, 0, 50, 1, 1, 0, "minimum_duty", ""),
+    P(19, 0, 0, 1, 1, 1, 0, "sine_start", ""),
+    P(45, 0, 1, 10, 1, 1, 0, "sine_start_power", ""),
+    P(40, 0, 5, 25, 1, 1, 0, "sine_changeover", "%"),
+    P(22, 0, 0, 1, 1, 1, 0, "stuck_rotor_protection", ""),
+    P(29, 0, 0, 1, 1, 1, 0, "stall_protection", ""),
+    P(43, 0, 70, 255, 1, 1, 0, "temperature_limit", "degC"),
+    P(44, 0, 0, 100, 2, 1, 0, "current_limit", "A"),
+    P(36, 0, 0, 2, 1, 1, 0, "low_voltage_cutoff", ""),
+    P(37, 0, 0, 100, 1, 100, 250, "cell_cutoff", "V"),
+    P(17, 0, 0, 1, 1, 1, 0, "reversed", ""),
+    P(18, 0, 0, 1, 1, 1, 0, "bidirectional", ""),
+    P(28, 0, 0, 1, 1, 1, 0, "brake_on_stop", ""),
+    P(30, 0, 0, 11, 1, 1, 0, "beep_volume", ""),
+};
+
+#define PARAM_COUNT ((uint16_t)(sizeof(params) / sizeof(params[0])))
+
+static uint8_t staged[sizeof(eepromBuffer.buffer)];
+static uint8_t staged_valid;
+
+static void stageLoad(void)
+{
+    if (!staged_valid) {
+        memcpy(staged, eepromBuffer.buffer, sizeof(staged));
+        staged_valid = 1;
+    }
+}
+
+// the motor must stand still, whichever input armed it
+static uint8_t paramBusy(void)
+{
+    return (armed || running) ? (uint8_t)B6_NACK_ARMED : 0U;
+}
+
+uint16_t b6PortParamCount(void)
+{
+    return PARAM_COUNT;
+}
+
+uint8_t b6PortParamInfo(uint16_t index, b6_param_info_t* info)
+{
+    if (index >= PARAM_COUNT) {
+        return B6_NACK_RANGE;
+    }
+    const param_t* p = &params[index];
+    info->type = 0;
+    info->flags = p->flags;
+    info->min = p->min;
+    info->max = p->max;
+    info->def = 0xFFFFU;
+    info->mul = p->mul;
+    info->div = p->div;
+    info->add = p->add;
+    strncpy(info->name, p->name, sizeof(info->name));
+    strncpy(info->unit, p->unit, sizeof(info->unit));
+    return 0;
+}
+
+uint8_t b6PortParamGet(uint16_t index, uint16_t* value, uint16_t* saved)
+{
+    if (index >= PARAM_COUNT) {
+        return B6_NACK_RANGE;
+    }
+    stageLoad();
+    *value = staged[params[index].offset];
+    *saved = eepromBuffer.buffer[params[index].offset];
+    return 0;
+}
+
+uint8_t b6PortParamSet(uint16_t index, uint16_t value)
+{
+    if (index >= PARAM_COUNT) {
+        return B6_NACK_RANGE;
+    }
+    const param_t* p = &params[index];
+    if (value < p->min || value > p->max || ((p->flags & B6_PARAM_EVEN) && (value & 1U))) {
+        return B6_NACK_RANGE;
+    }
+    const uint8_t busy = paramBusy();
+    if (busy) {
+        return busy;
+    }
+    stageLoad();
+    staged[p->offset] = (uint8_t)value;
+    return 0;
+}
+
+uint8_t b6PortParamSave(uint8_t* changed)
+{
+    const uint8_t busy = paramBusy();
+    if (busy) {
+        return busy;
+    }
+    stageLoad();
+    *changed = memcmp(staged, eepromBuffer.buffer, sizeof(staged)) != 0;
+    if (*changed) {
+        memcpy(eepromBuffer.buffer, staged, sizeof(staged));
+        saveEEpromSettings();
+    }
+    return 0;
+}
+
+void b6PortRestart(void)
+{
+    b6HwRestart();
+}
+
 void b6Am32Init(void)
 {
+    staged_valid = 0;   // staged settings follow the EEPROM read at start-up
     b6HwInit();
     b6Init(LOOP_FREQUENCY_HZ);
     b6Event(B6_EVT_RESET, b6HwResetCause());

@@ -11,6 +11,9 @@
  *    USB link ends the same way
  *  - STOP holds the throttle at 0 until DISARM
  *  - PARAM_SAVE and DRV_REG_WRITE are refused while armed
+ *  - PARAM_SET only stages a value; PARAM_SAVE writes the flash and the ESC
+ *    restarts B6_RESET_DELAY_MS after its ACK, so every setting is applied
+ *    by the normal start-up code (no ARM until then)
  */
 
 #include "b6_protocol.h"
@@ -37,6 +40,8 @@ static volatile uint8_t watchdog_tripped;
 static uint8_t tx_seq;
 static uint16_t telem_hz;
 static uint32_t telem_next;
+static uint8_t restart_left;          // PARAM_SAVE wrote flash: b6PortRestart() at restart_at
+static uint32_t restart_at;
 
 static void putU16(uint8_t* p, uint16_t v)
 {
@@ -197,6 +202,22 @@ uint16_t b6ThrottleToInput(int16_t permille, uint8_t bidirectional)
     return (uint16_t)(48 + (-permille * 999) / 1000);
 }
 
+void b6PackParamInfo(uint8_t out[B6_PARAM_INFO_SIZE], uint16_t index, uint16_t count, const b6_param_info_t* i)
+{
+    putU16(out, index);
+    putU16(out + 2, count);
+    out[4] = i->type;
+    out[5] = i->flags;
+    putU16(out + 6, i->min);
+    putU16(out + 8, i->max);
+    putU16(out + 10, i->def);
+    putU16(out + 12, i->mul);
+    putU16(out + 14, i->div);
+    putU32(out + 16, (uint32_t)i->add);
+    memcpy(out + 20, i->name, B6_PARAM_NAME_LEN);
+    memcpy(out + 20 + B6_PARAM_NAME_LEN, i->unit, B6_PARAM_UNIT_LEN);
+}
+
 static void send(uint8_t seq, uint8_t type, const uint8_t* payload, uint16_t len)
 {
     uint8_t frame[B6_OVERHEAD + B6_RX_PAYLOAD_MAX];
@@ -256,7 +277,7 @@ static void handleArm(const b6_frame_t* f)
         ack(f);
         return;
     }
-    const uint8_t refused = b6PortArmCheck();
+    const uint8_t refused = restart_left ? (uint8_t)B6_NACK_BUSY : b6PortArmCheck();
     if (refused) {
         nack(f, refused);
         return;
@@ -303,6 +324,78 @@ static void handleThrottle(const b6_frame_t* f)
     watchdog_left = watchdogTicks();
     b6PortThrottle(throttle);
     ack(f);
+}
+
+static void sendParamValue(const b6_frame_t* f, uint16_t index)
+{
+    uint16_t value = 0, saved = 0;
+    const uint8_t refused = b6PortParamGet(index, &value, &saved);
+    if (refused) {
+        nack(f, refused);
+        return;
+    }
+    uint8_t p[B6_PARAM_VALUE_SIZE];
+    putU16(p, index);
+    putU16(p + 2, value);
+    putU16(p + 4, saved);
+    send(f->seq, B6_PARAM_GET, p, sizeof(p));
+}
+
+static void handleParam(const b6_frame_t* f)
+{
+    if (f->type == B6_PARAM_SAVE) {
+        if (armed) {
+            nack(f, B6_NACK_ARMED);
+            return;
+        }
+        uint8_t changed = 0;
+        const uint8_t refused = b6PortParamSave(&changed);
+        if (refused) {
+            nack(f, refused);
+            return;
+        }
+        ack(f);
+        if (changed) {
+            restart_at = ticks + ((uint32_t)B6_RESET_DELAY_MS * tick_hz + 999U) / 1000U;
+            restart_left = 1;
+        }
+        return;
+    }
+    const uint16_t need = f->type == B6_PARAM_SET ? 4U : 2U;
+    if (f->len < need) {
+        nack(f, B6_NACK_BAD_LENGTH);
+        return;
+    }
+    const uint16_t index = getU16(f->payload);
+    if (index >= b6PortParamCount()) {
+        nack(f, B6_NACK_RANGE);
+        return;
+    }
+    if (f->type == B6_PARAM_INFO) {
+        b6_param_info_t info;
+        memset(&info, 0, sizeof(info));
+        const uint8_t refused = b6PortParamInfo(index, &info);
+        if (refused) {
+            nack(f, refused);
+            return;
+        }
+        uint8_t p[B6_PARAM_INFO_SIZE];
+        b6PackParamInfo(p, index, b6PortParamCount(), &info);
+        send(f->seq, B6_PARAM_INFO, p, sizeof(p));
+        return;
+    }
+    if (f->type == B6_PARAM_SET) {
+        if (armed || restart_left) {
+            nack(f, armed ? B6_NACK_ARMED : B6_NACK_BUSY);
+            return;
+        }
+        const uint8_t refused = b6PortParamSet(index, getU16(f->payload + 2));
+        if (refused) {
+            nack(f, refused);
+            return;
+        }
+    }
+    sendParamValue(f, index);
 }
 
 static void handle(const b6_frame_t* f)
@@ -364,7 +457,12 @@ static void handle(const b6_frame_t* f)
         }
         break;
     }
+    case B6_PARAM_INFO:
+    case B6_PARAM_GET:
+    case B6_PARAM_SET:
     case B6_PARAM_SAVE:
+        handleParam(f);
+        break;
     case B6_DRV_REG_WRITE:
         // the armed check comes first: these must never run while armed
         nack(f, armed ? B6_NACK_ARMED : B6_NACK_UNKNOWN);
@@ -387,6 +485,7 @@ void b6Init(uint32_t hz)
     watchdog_left = 0;
     watchdog_tripped = 0;
     telem_hz = 0;
+    restart_left = 0;
     b6ParserReset(&b6_parser);
     memset(&b6_stats, 0, sizeof(b6_stats));
 }
@@ -417,6 +516,10 @@ void b6Tick(void)
 
 void b6Service(void)
 {
+    if (restart_left && (int32_t)(ticks - restart_at) >= 0) {
+        b6PortRestart();
+        restart_left = 0;   // a test hook returns
+    }
     if (watchdog_tripped) {
         watchdog_tripped = 0;
         if (armed) {
