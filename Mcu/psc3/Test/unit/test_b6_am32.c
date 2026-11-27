@@ -354,6 +354,11 @@ static void testParams(void)
     f = findType(B6_PARAM_GET, 6);
     CHECK(f && le16(f->payload + 2) == 31 && le16(f->payload + 4) == 55 && eepromBuffer.motor_kv == 55,
         "PARAM_SET stages 31, the live setting stays 55 until SAVE");
+    const int cur = paramIndex("current_limit");
+    queue(20, B6_PARAM_SET, (const uint8_t[]){ (uint8_t)cur, 0, 102, 0 }, 4);
+    poll();
+    f = findType(B6_PARAM_GET, 20);
+    CHECK(cur >= 0 && f && le16(f->payload + 2) == 102, "current_limit 102 (AM32 default, off) accepted");
 
     running = 1;    // turning, e.g. DShot armed
     queue(7, B6_PARAM_SET, (const uint8_t[]){ (uint8_t)kv, 0, 30, 0 }, 4);

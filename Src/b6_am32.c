@@ -306,7 +306,7 @@ static const param_t params[] = {
     P(22, 0, 0, 1, 1, 1, 0, "stuck_rotor_protection", ""),
     P(29, 0, 0, 1, 1, 1, 0, "stall_protection", ""),
     P(43, 0, 70, 255, 1, 1, 0, "temperature_limit", "degC"),
-    P(44, 0, 0, 100, 2, 1, 0, "current_limit", "A"),
+    P(44, 0, 0, 255, 2, 1, 0, "current_limit", "A"),   // 1..100 = 2..200 A; 0 or above 100 = off (AM32 default 102)
     P(36, 0, 0, 2, 1, 1, 0, "low_voltage_cutoff", ""),
     P(37, 0, 0, 100, 1, 100, 250, "cell_cutoff", "V"),
     P(17, 0, 0, 1, 1, 1, 0, "reversed", ""),
